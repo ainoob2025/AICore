@@ -1,0 +1,20 @@
+{
+  "role": "debug_agent",
+  "description": "Findet Fehler in Code, Prozessen, Planungsschritten oder Tool-Aufrufen.",
+  "allowed_tools": [
+    "thinking_reason",
+    "python_sandbox",
+    "file_read"
+  ],
+  "memory_scope": [
+    "episodic"
+  ],
+  "work_area": "debugging",
+  "evaluation": {
+    "success_criteria": [
+      "Fehler eindeutig identifiziert",
+      "klare Erklärung der Ursache",
+      "klare Handlungsempfehlung"
+    ]
+  }
+}

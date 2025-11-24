@@ -1,0 +1,7 @@
+{
+  "lmstudio_api_url": "http://host.docker.internal:10030/v1/chat/completions",
+  "main_model": "josiefied-qwen3-4b-instruct-2507-abliterated-v1-i1@q5_k_m",
+  "vision_model": "qwen3-vl-8b-nsfw-caption-v4-i1@q5_k_m",
+  "thinking_model": "qwen_qwen3-4b-thinking-2507",
+  "embedding_model": "text-embedding-jina-embeddings-v4-vllm-retrieval-i1"
+}

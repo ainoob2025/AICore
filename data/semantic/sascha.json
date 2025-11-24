@@ -1,0 +1,36 @@
+[
+  {
+    "timestamp": "2025-11-22T09:06:23.744570Z",
+    "content": "Nutzer-Info (like): Pasta",
+    "source": "user_message",
+    "tags": [
+      "auto",
+      "user_fact",
+      "importance:high",
+      "fact:like"
+    ]
+  },
+  {
+    "timestamp": "2025-11-22T09:33:38.998387Z",
+    "content": "[ARCHIVIERT] Nutzer-Info (like): Pasta",
+    "source": "archive",
+    "tags": [
+      "auto",
+      "user_fact",
+      "importance:high",
+      "fact:like",
+      "archived:true"
+    ]
+  },
+  {
+    "timestamp": "2025-11-22T09:33:39.000803Z",
+    "content": "Nutzer-Info (like): Pizza",
+    "source": "user_message",
+    "tags": [
+      "auto",
+      "user_fact",
+      "importance:high",
+      "fact:like"
+    ]
+  }
+]

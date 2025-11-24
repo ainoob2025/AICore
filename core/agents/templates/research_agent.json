@@ -1,0 +1,22 @@
+{
+  "role": "research_agent",
+  "description": "Sammelt Informationen, führt Websuche aus, bewertet Quellen und liefert strukturiertes Wissen.",
+  "allowed_tools": [
+    "thinking_reason",
+    "vision_analyze",
+    "web_search",
+    "rag_query"
+  ],
+  "memory_scope": [
+    "semantic",
+    "episodic"
+  ],
+  "work_area": "research",
+  "evaluation": {
+    "success_criteria": [
+      "korrekte Fakten",
+      "quellenbasierte Ergebnisse",
+      "klare Zusammenfassungen"
+    ]
+  }
+}

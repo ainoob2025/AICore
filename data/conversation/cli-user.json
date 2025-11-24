@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "Hallo Josie, CLI Test"
+  },
+  {
+    "role": "assistant",
+    "content": "Hallo! Alles klar – CLI-Test läuft. 😊  \nWas möchtest du gerade testen? Oder hast du eine Frage, die du gerne mit mir besprechen möchtest?"
+  }
+]

@@ -1,0 +1,44 @@
+{
+  "agent_id": "4630b475-e4f6-4479-86ea-f90799766eb9",
+  "user_id": "sascha",
+  "task": "Testlauf AgentRunner",
+  "status": "created",
+  "created_at": "2025-11-23T12:32:24.398005Z",
+  "updated_at": "2025-11-23T12:34:33.630032Z",
+  "steps": [
+    {
+      "id": "da28af0f-ba06-4886-89b8-b6b8126b15cd",
+      "timestamp": "2025-11-23T12:33:45.931258Z",
+      "type": "info",
+      "description": "Runner-Test: Schritt 1",
+      "status": "done",
+      "data": {
+        "test": true
+      },
+      "started_at": "2025-11-23T12:34:33.627690Z",
+      "completed_at": "2025-11-23T12:34:33.630028Z"
+    }
+  ],
+  "meta": {
+    "role": "research_agent",
+    "description": "Sammelt Informationen, führt Websuche aus, bewertet Quellen und liefert strukturiertes Wissen.",
+    "allowed_tools": [
+      "thinking_reason",
+      "vision_analyze",
+      "web_search",
+      "rag_query"
+    ],
+    "memory_scope": [
+      "semantic",
+      "episodic"
+    ],
+    "work_area": "research",
+    "evaluation": {
+      "success_criteria": [
+        "korrekte Fakten",
+        "quellenbasierte Ergebnisse",
+        "klare Zusammenfassungen"
+      ]
+    }
+  }
+}

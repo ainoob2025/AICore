@@ -1,0 +1,19 @@
+{
+  "role": "workflow_agent",
+  "description": "Koordiniert mehrere Agenten, plant Abläufe, überwacht Fortschritt und führt Subtasks zusammen.",
+  "allowed_tools": [
+    "thinking_reason"
+  ],
+  "memory_scope": [
+    "episodic",
+    "semantic"
+  ],
+  "work_area": "workflow_management",
+  "evaluation": {
+    "success_criteria": [
+      "logische Reihenfolge",
+      "Task-Abhängigkeiten korrekt behandelt",
+      "Planergebnis konsistent"
+    ]
+  }
+}

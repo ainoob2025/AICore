@@ -1,0 +1,21 @@
+{
+  "role": "code_agent",
+  "description": "Analysiert, schreibt und verbessert Code. Führt Code-Tools aus und liefert Debug-Informationen.",
+  "allowed_tools": [
+    "thinking_reason",
+    "python_sandbox",
+    "file_read",
+    "file_write"
+  ],
+  "memory_scope": [
+    "episodic"
+  ],
+  "work_area": "coding",
+  "evaluation": {
+    "success_criteria": [
+      "fehlerfreier Code",
+      "klare Struktur",
+      "lösungsorientiert"
+    ]
+  }
+}

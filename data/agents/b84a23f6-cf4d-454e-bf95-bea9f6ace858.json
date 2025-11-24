@@ -1,0 +1,31 @@
+{
+  "agent_id": "b84a23f6-cf4d-454e-bf95-bea9f6ace858",
+  "user_id": "sascha",
+  "task": "Recherchiere zum Thema KI Autonomie",
+  "status": "created",
+  "created_at": "2025-11-23T10:55:54.613824Z",
+  "updated_at": "2025-11-23T10:55:54.621728Z",
+  "steps": [],
+  "meta": {
+    "role": "research_agent",
+    "description": "Sammelt Informationen, führt Websuche aus, bewertet Quellen und liefert strukturiertes Wissen.",
+    "allowed_tools": [
+      "thinking_reason",
+      "vision_analyze",
+      "web_search",
+      "rag_query"
+    ],
+    "memory_scope": [
+      "semantic",
+      "episodic"
+    ],
+    "work_area": "research",
+    "evaluation": {
+      "success_criteria": [
+        "korrekte Fakten",
+        "quellenbasierte Ergebnisse",
+        "klare Zusammenfassungen"
+      ]
+    }
+  }
+}

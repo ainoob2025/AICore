@@ -1,0 +1,16 @@
+[
+  {
+    "timestamp": "2025-11-23T07:23:43.357989Z",
+    "type": "model_response",
+    "data": {
+      "user_message": "Hallo Josie, CLI Test",
+      "assistant_reply": "Hallo! Alles klar – CLI-Test läuft. 😊  \nWas möchtest du gerade testen? Oder hast du eine Frage, die du gerne mit mir besprechen möchtest?",
+      "importance": "low"
+    },
+    "tags": [
+      "conversation",
+      "llm",
+      "importance:low"
+    ]
+  }
+]

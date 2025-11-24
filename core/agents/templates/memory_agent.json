@@ -1,0 +1,19 @@
+{
+  "role": "memory_agent",
+  "description": "Verwaltet, analysiert und korrigiert Memory-Daten. Stellt Konsistenz zwischen Episodic/Semantic sicher.",
+  "allowed_tools": [
+    "thinking_reason"
+  ],
+  "memory_scope": [
+    "semantic",
+    "episodic"
+  ],
+  "work_area": "memory_management",
+  "evaluation": {
+    "success_criteria": [
+      "keine redundanten Fakten",
+      "saubere Archivierung",
+      "korrektes Wichtigkeitsrouting"
+    ]
+  }
+}

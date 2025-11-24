@@ -1,0 +1,45 @@
+{
+  "agent_id": "a61f11d0-b119-49b9-952d-b83c25e497f5",
+  "user_id": "sascha",
+  "task": "Testlauf AgentRunner (Flow)",
+  "status": "created",
+  "created_at": "2025-11-23T12:47:06.057596Z",
+  "updated_at": "2025-11-23T12:47:06.088564Z",
+  "steps": [
+    {
+      "id": "6913723e-d5e2-494b-b48c-5eff84fac7dc",
+      "timestamp": "2025-11-23T12:47:06.077406Z",
+      "type": "info",
+      "description": "Flow-Test: Schritt 1",
+      "status": "done",
+      "data": {
+        "a": 1,
+        "b": true
+      },
+      "started_at": "2025-11-23T12:47:06.086449Z",
+      "completed_at": "2025-11-23T12:47:06.088560Z"
+    }
+  ],
+  "meta": {
+    "role": "research_agent",
+    "description": "Sammelt Informationen, führt Websuche aus, bewertet Quellen und liefert strukturiertes Wissen.",
+    "allowed_tools": [
+      "thinking_reason",
+      "vision_analyze",
+      "web_search",
+      "rag_query"
+    ],
+    "memory_scope": [
+      "semantic",
+      "episodic"
+    ],
+    "work_area": "research",
+    "evaluation": {
+      "success_criteria": [
+        "korrekte Fakten",
+        "quellenbasierte Ergebnisse",
+        "klare Zusammenfassungen"
+      ]
+    }
+  }
+}

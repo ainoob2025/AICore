@@ -1,0 +1,40 @@
+{
+  "agent_id": "bf867490-2d07-47d4-967f-0d3414cfe9bd",
+  "user_id": "sascha",
+  "task": "Recherchiere zum Thema KI Autonomie",
+  "status": "created",
+  "created_at": "2025-11-23T11:41:07.511193Z",
+  "updated_at": "2025-11-23T11:42:43.845166Z",
+  "steps": [
+    {
+      "timestamp": "2025-11-23T11:42:43.845162Z",
+      "type": "info",
+      "description": "Erster Test-Schritt",
+      "data": {
+        "note": "Phase 2 Agent Step Test"
+      }
+    }
+  ],
+  "meta": {
+    "role": "research_agent",
+    "description": "Sammelt Informationen, führt Websuche aus, bewertet Quellen und liefert strukturiertes Wissen.",
+    "allowed_tools": [
+      "thinking_reason",
+      "vision_analyze",
+      "web_search",
+      "rag_query"
+    ],
+    "memory_scope": [
+      "semantic",
+      "episodic"
+    ],
+    "work_area": "research",
+    "evaluation": {
+      "success_criteria": [
+        "korrekte Fakten",
+        "quellenbasierte Ergebnisse",
+        "klare Zusammenfassungen"
+      ]
+    }
+  }
+}

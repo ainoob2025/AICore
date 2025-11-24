@@ -1,0 +1,115 @@
+[
+  {
+    "name": "echo",
+    "description": "Echo-Tool. Gibt den Payload 1:1 zurück.",
+    "input_schema": {
+      "type": "object",
+      "description": "Beliebiger JSON-Payload, wird unverändert zurückgegeben.",
+      "additionalProperties": true
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "result": {},
+        "error": { "type": ["string", "null"] }
+      },
+      "required": ["ok", "tool"]
+    },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.99,
+    "tags": ["debug", "echo", "utility"]
+  },
+  {
+    "name": "uppercase",
+    "description": "Konvertiert payload.text in Großbuchstaben.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Eingabetext, der in Großbuchstaben konvertiert werden soll."
+        }
+      },
+      "required": ["text"]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "result": { "type": "string" },
+        "error": { "type": ["string", "null"] }
+      },
+      "required": ["ok", "tool", "result"]
+    },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.98,
+    "tags": ["text", "transform", "utility"]
+  },
+  {
+    "name": "vision_analyze",
+    "description": "Analysiert Bilder/Multimodal-Eingaben mit dem Vision-Modell und liefert eine textuelle Beschreibung/Analyse.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "description": "LM-Studio-kompatible Nachrichten inkl. Bildinhalt.",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": ["messages"]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "result": { "type": "string" },
+        "error": { "type": ["string", "null"] }
+      },
+      "required": ["ok", "tool"]
+    },
+    "cost": 3,
+    "latency": 3,
+    "reliability_score": 0.9,
+    "tags": ["vision", "analysis", "multimodal"]
+  },
+  {
+    "name": "thinking_reason",
+    "description": "Nutzen des Thinking-Modells für tiefes Reasoning; liefert reinen Reasoning-Text, keine User-facing Antwort.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "description": "LM-Studio-kompatible Nachrichten mit einer klaren Reasoning-Aufgabe.",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": ["messages"]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "result": { "type": "string" },
+        "error": { "type": ["string", "null"] }
+      },
+      "required": ["ok", "tool"]
+    },
+    "cost": 3,
+    "latency": 3,
+    "reliability_score": 0.9,
+    "tags": ["reasoning", "thinking", "analysis"]
+  }
+]
