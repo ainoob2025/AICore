@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from .model_switcher import ModelSwitcher
+from core.rag.rag_service import RagService
 
 
 class ToolRouter:
@@ -35,6 +36,7 @@ class ToolRouter:
         self.thinking_model_id = thinking_model_id
 
         self.model_switcher = ModelSwitcher(api_url=self.api_url)
+        self.rag_service = RagService()
 
         # interne Registry + Pfade
         base_dir = Path(__file__).resolve().parents[2]
@@ -77,6 +79,8 @@ class ToolRouter:
                 result = self._handle_vision_analyze(args)
             elif tool_name == "thinking_reason":
                 result = self._handle_thinking_reason(args)
+            elif tool_name == "rag_query":
+                result = self._handle_rag_query(args)
             else:
                 result = {
                     "ok": False,
@@ -501,4 +505,48 @@ class ToolRouter:
                 "tool": "thinking_reason",
                 "result": None,
                 "error": f"Thinking call failed: {e}",
+            }
+
+    def _handle_rag_query(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handler für das rag_query-Tool.
+        Erwartet im payload:
+          - "user_id": str
+          - "query": str
+          - optional "top_k": int
+          - optional "filters": Dict[str, Any]
+        Ruft RagService.query(...) auf und gibt eine strukturierte Antwort zurück.
+        """
+        user_id = payload.get("user_id")
+        query = payload.get("query")
+        top_k = payload.get("top_k", 5)
+        filters = payload.get("filters") or {}
+
+        if not isinstance(user_id, str) or not isinstance(query, str):
+            return {
+                "ok": False,
+                "tool": "rag_query",
+                "result": None,
+                "error": "Payload muss 'user_id' (str) und 'query' (str) enthalten.",
+            }
+
+        try:
+            results = self.rag_service.query(
+                user_id=user_id,
+                query_text=query,
+                top_k=int(top_k) if top_k is not None else 5,
+                filters=filters,
+            )
+            return {
+                "ok": True,
+                "tool": "rag_query",
+                "results": results,
+                "error": None,
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "tool": "rag_query",
+                "results": [],
+                "error": f"rag_query failed: {e}",
             }

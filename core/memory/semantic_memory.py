@@ -29,7 +29,7 @@ class SemanticMemory:
     # ---------- Laden & Speichern ----------
 
     def _get_user_file(self, user_id: str) -> str:
-        """Pfad zur JSON-Datei des Users."""
+        """Pfad zur JSON-Datei des Users.""" 
         safe_id = str(user_id).replace("/", "_")
         return os.path.join(self.base_path, f"{safe_id}.json")
 

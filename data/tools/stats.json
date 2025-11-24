@@ -1,20 +1,20 @@
 {
   "echo": {
-    "success_count": 3,
+    "success_count": 6,
     "failure_count": 0,
-    "avg_latency": 2.586986132276555e-06,
+    "avg_latency": 2.562660180653135e-06,
     "last_error": null
   },
   "thinking_reason": {
-    "success_count": 2,
-    "failure_count": 0,
-    "avg_latency": 21.339967600004456,
+    "success_count": 3,
+    "failure_count": 1,
+    "avg_latency": 20.733270067501508,
     "last_error": null
   },
   "uppercase": {
-    "success_count": 1,
+    "success_count": 2,
     "failure_count": 0,
-    "avg_latency": 2.700020559132099e-06,
+    "avg_latency": 2.7500100259203464e-06,
     "last_error": null
   }
 }

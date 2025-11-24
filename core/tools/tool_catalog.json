@@ -111,5 +111,60 @@
     "latency": 3,
     "reliability_score": 0.9,
     "tags": ["reasoning", "thinking", "analysis"]
+  },
+  {
+    "name": "rag_query",
+    "description": "Durchsucht den lokalen RAG-Index und liefert relevante Wissenseinträge mit Score und Metadaten zurück.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "User-ID, deren Wissenskontext durchsucht werden soll."
+        },
+        "query": {
+          "type": "string",
+          "description": "Natürliche Sprachfrage bzw. Suchtext."
+        },
+        "top_k": {
+          "type": "integer",
+          "description": "Maximale Anzahl an Treffern.",
+          "default": 5
+        },
+        "filters": {
+          "type": "object",
+          "description": "Einfache Metadaten-Filter (key==value).",
+          "additionalProperties": true
+        }
+      },
+      "required": ["user_id", "query"]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "user_id": { "type": "string" },
+              "score": { "type": "number" },
+              "text_preview": { "type": "string" },
+              "metadata": { "type": "object" }
+            },
+            "required": ["id", "score"]
+          }
+        },
+        "error": { "type": ["string", "null"] }
+      },
+      "required": ["ok", "tool", "results"]
+    },
+    "cost": 2,
+    "latency": 2,
+    "reliability_score": 0.9,
+    "tags": ["rag", "retrieval", "knowledge"]
   }
 ]
