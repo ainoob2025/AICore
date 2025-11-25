@@ -4,7 +4,6 @@
     "description": "Echo-Tool. Gibt den Payload 1:1 zurück.",
     "input_schema": {
       "type": "object",
-      "description": "Beliebiger JSON-Payload, wird unverändert zurückgegeben.",
       "additionalProperties": true
     },
     "output_schema": {
@@ -13,58 +12,23 @@
         "ok": { "type": "boolean" },
         "tool": { "type": "string" },
         "result": {},
-        "error": { "type": ["string", "null"] }
+        "error": { "type": [ "string", "null" ] }
       },
-      "required": ["ok", "tool"]
-    },
-    "cost": 1,
-    "latency": 1,
-    "reliability_score": 0.99,
-    "tags": ["debug", "echo", "utility"]
-  },
-  {
-    "name": "uppercase",
-    "description": "Konvertiert payload.text in Großbuchstaben.",
-    "input_schema": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string",
-          "description": "Eingabetext, der in Großbuchstaben konvertiert werden soll."
-        }
-      },
-      "required": ["text"]
-    },
-    "output_schema": {
-      "type": "object",
-      "properties": {
-        "ok": { "type": "boolean" },
-        "tool": { "type": "string" },
-        "result": { "type": "string" },
-        "error": { "type": ["string", "null"] }
-      },
-      "required": ["ok", "tool", "result"]
+      "required": [ "ok", "tool", "result" ]
     },
     "cost": 1,
     "latency": 1,
     "reliability_score": 0.98,
-    "tags": ["text", "transform", "utility"]
+    "tags": [ "text" ]
   },
+
   {
-    "name": "vision_analyze",
-    "description": "Analysiert Bilder/Multimodal-Eingaben mit dem Vision-Modell und liefert eine textuelle Beschreibung/Analyse.",
+    "name": "uppercase",
+    "description": "Wandelt Text in Großbuchstaben um.",
     "input_schema": {
       "type": "object",
-      "properties": {
-        "messages": {
-          "type": "array",
-          "description": "LM-Studio-kompatible Nachrichten inkl. Bildinhalt.",
-          "items": {
-            "type": "object"
-          }
-        }
-      },
-      "required": ["messages"]
+      "properties": { "text": { "type": "string" } },
+      "required": [ "text" ]
     },
     "output_schema": {
       "type": "object",
@@ -72,99 +36,219 @@
         "ok": { "type": "boolean" },
         "tool": { "type": "string" },
         "result": { "type": "string" },
-        "error": { "type": ["string", "null"] }
+        "error": { "type": [ "string", "null" ] }
       },
-      "required": ["ok", "tool"]
+      "required": [ "ok", "tool", "result" ]
     },
-    "cost": 3,
-    "latency": 3,
-    "reliability_score": 0.9,
-    "tags": ["vision", "analysis", "multimodal"]
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.97,
+    "tags": [ "text" ]
   },
+
   {
     "name": "thinking_reason",
-    "description": "Nutzen des Thinking-Modells für tiefes Reasoning; liefert reinen Reasoning-Text, keine User-facing Antwort.",
+    "description": "Thinking-Tool für komplexes Reasoning.",
     "input_schema": {
       "type": "object",
       "properties": {
         "messages": {
           "type": "array",
-          "description": "LM-Studio-kompatible Nachrichten mit einer klaren Reasoning-Aufgabe.",
-          "items": {
-            "type": "object"
-          }
+          "items": { "type": "object" }
         }
       },
-      "required": ["messages"]
+      "required": [ "messages" ]
     },
     "output_schema": {
       "type": "object",
       "properties": {
         "ok": { "type": "boolean" },
         "tool": { "type": "string" },
-        "result": { "type": "string" },
-        "error": { "type": ["string", "null"] }
-      },
-      "required": ["ok", "tool"]
+        "result": {},
+        "error": { "type": [ "string", "null" ] }
+      }
     },
-    "cost": 3,
-    "latency": 3,
-    "reliability_score": 0.9,
-    "tags": ["reasoning", "thinking", "analysis"]
+    "cost": 5,
+    "latency": 5,
+    "reliability_score": 0.85,
+    "tags": [ "reasoning", "llm" ]
   },
+
   {
-    "name": "rag_query",
-    "description": "Durchsucht den lokalen RAG-Index und liefert relevante Wissenseinträge mit Score und Metadaten zurück.",
+    "name": "vision_analyze",
+    "description": "Vision-Analyse über LM Studio.",
     "input_schema": {
       "type": "object",
       "properties": {
-        "user_id": {
-          "type": "string",
-          "description": "User-ID, deren Wissenskontext durchsucht werden soll."
-        },
-        "query": {
-          "type": "string",
-          "description": "Natürliche Sprachfrage bzw. Suchtext."
-        },
-        "top_k": {
-          "type": "integer",
-          "description": "Maximale Anzahl an Treffern.",
-          "default": 5
-        },
-        "filters": {
-          "type": "object",
-          "description": "Einfache Metadaten-Filter (key==value).",
-          "additionalProperties": true
-        }
+        "messages": { "type": "array" }
       },
-      "required": ["user_id", "query"]
+      "required": [ "messages" ]
     },
     "output_schema": {
       "type": "object",
       "properties": {
         "ok": { "type": "boolean" },
         "tool": { "type": "string" },
-        "results": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "user_id": { "type": "string" },
-              "score": { "type": "number" },
-              "text_preview": { "type": "string" },
-              "metadata": { "type": "object" }
-            },
-            "required": ["id", "score"]
-          }
-        },
-        "error": { "type": ["string", "null"] }
+        "result": {},
+        "error": { "type": [ "string", "null" ] }
+      }
+    },
+    "cost": 6,
+    "latency": 6,
+    "reliability_score": 0.8,
+    "tags": [ "vision" ]
+  },
+
+  {
+    "name": "rag_query",
+    "description": "RAG-Serviceabfrage.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" }
       },
-      "required": ["ok", "tool", "results"]
+      "required": [ "query" ]
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" },
+        "tool": { "type": "string" },
+        "results": { "type": "array" },
+        "error": { "type": [ "string", "null" ] }
+      }
     },
     "cost": 2,
     "latency": 2,
     "reliability_score": 0.9,
-    "tags": ["rag", "retrieval", "knowledge"]
+    "tags": [ "rag", "retrieval" ]
+  },
+
+  "<!--",
+  "PHASE",
+  7,
+  "TOOLS",
+  "-->",
+
+  {
+    "name": "browser_get",
+    "description": "HTTP GET mit Timeout & Size-Limit.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" }
+      },
+      "required": [ "url" ]
+    },
+    "output_schema": { "type": "object" },
+    "cost": 2,
+    "latency": 3,
+    "reliability_score": 0.9,
+    "tags": [ "browser", "http" ]
+  },
+
+  {
+    "name": "browser_extract",
+    "description": "Einfache Text-Extraktion aus HTML/Text.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 2,
+    "latency": 2,
+    "reliability_score": 0.9,
+    "tags": [ "browser", "extract" ]
+  },
+
+  {
+    "name": "browser_click",
+    "description": "Click-Simulation (Stub).",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 2,
+    "latency": 2,
+    "reliability_score": 0.85,
+    "tags": [ "browser" ]
+  },
+
+  {
+    "name": "shell_run",
+    "description": "Sandboxed Terminal (Whitelist).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "command": { "type": "string" }
+      },
+      "required": [ "command" ]
+    },
+    "output_schema": { "type": "object" },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.95,
+    "tags": [ "terminal", "shell" ]
+  },
+
+  {
+    "name": "file_read",
+    "description": "Liest Textdateien unter data/files.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.97,
+    "tags": [ "file" ]
+  },
+
+  {
+    "name": "file_write",
+    "description": "Schreibt Textdateien unter data/files.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.97,
+    "tags": [ "file" ]
+  },
+
+  {
+    "name": "file_list",
+    "description": "Listet Dateien im Root.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 1,
+    "latency": 1,
+    "reliability_score": 0.97,
+    "tags": [ "file" ]
+  },
+
+  {
+    "name": "file_summary",
+    "description": "Einfache statistische Text-Zusammenfassung.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 2,
+    "latency": 2,
+    "reliability_score": 0.93,
+    "tags": [ "file", "summary" ]
+  },
+
+  {
+    "name": "speech_to_text",
+    "description": "Textbasierter STT-Stub unter data/audio.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 3,
+    "latency": 3,
+    "reliability_score": 0.9,
+    "tags": [ "audio" ]
+  },
+
+  {
+    "name": "text_to_speech",
+    "description": "Schreibt Text nach data/audio_out.",
+    "input_schema": { "type": "object" },
+    "output_schema": { "type": "object" },
+    "cost": 3,
+    "latency": 3,
+    "reliability_score": 0.9,
+    "tags": [ "audio" ]
   }
 ]

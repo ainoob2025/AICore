@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+import time
 
 from core.memory.memory_core import MemoryCore
 from core.memory.episodic_memory import EpisodicMemory
@@ -14,11 +15,13 @@ from core.tools.tool_router import ToolRouter
 from core.agents.agent_state import AgentStateManager
 from core.agents.agent_factory import AgentFactory
 from core.agents.agent_runner import AgentRunner
+from core.agents.self_improvement_agent import SelfImprovementAgent
 
 from core.planner.planner import Planner
 from core.planner.planner_agent_link import PlannerAgentLink
 
 from core.kernel.request_types import CoreRequest, CoreResponse
+from core.kernel.task_feedback import TaskFeedbackLogger
 
 
 class SessionManager:
@@ -85,6 +88,9 @@ class MasterAgent:
         self._log_path = Path("data/logs/core.log")
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
+        self.task_logger = TaskFeedbackLogger()
+        self.self_improvement = SelfImprovementAgent()
+
     # ----------------------------------------------------------------------
     # LOGGING
     # ----------------------------------------------------------------------
@@ -124,10 +130,23 @@ class MasterAgent:
             errors=[],
         )
 
+        started_at = time.perf_counter()
+        used_tools = []
+
+        # ---------------- SELF-IMPROVEMENT ----------------
+        if core_request.input_type == "self_improve":
+            strategies = self.run_self_improvement()
+            response.messages.append(
+                {"role": "assistant", "content": json.dumps(strategies, ensure_ascii=False)}
+            )
+            self._log_task_feedback(core_request, response, started_at, used_tools=[])
+            return response
+
         # ---------------- CHAT ----------------
         if core_request.input_type == "chat":
             reply_dict = self.handle_message(core_request.user_id, core_request.message or "")
             response.messages.append({"role": "assistant", "content": reply_dict.get("reply", "")})
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- TOOL ----------------
@@ -136,6 +155,8 @@ class MasterAgent:
             tool_payload = core_request.tool_payload or {}
             result = self.call_tool(core_request.user_id, tool_name, tool_payload)
             response.tool_calls.append({"tool": tool_name, "result": result})
+            used_tools = [tool_name] if tool_name else []
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- TOOL SELECT (LLM-gesteuerte Auswahl) ----------------
@@ -160,6 +181,7 @@ class MasterAgent:
                     "candidates": candidates,
                 }
             )
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- PLANNER ONLY ----------------
@@ -167,6 +189,7 @@ class MasterAgent:
             task = core_request.message or ""
             plan = self.planner.create_plan(task)
             response.planner_trace.append(plan)
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- PLANNER + AGENT ----------------
@@ -180,6 +203,7 @@ class MasterAgent:
             )
             response.planner_trace.append(result.get("plan"))
             response.agent_updates = result.get("agent")
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- AGENT STEP ----------------
@@ -198,6 +222,7 @@ class MasterAgent:
             )
 
             response.agent_updates = updated_agent
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- AGENT RUN ----------------
@@ -208,9 +233,11 @@ class MasterAgent:
             runner_result = self.agent_runner.run_next_step(agent_id)
 
             response.agent_updates = runner_result
+            self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
             return response
 
         # ---------------- FALLBACK ----------------
+        self._log_task_feedback(core_request, response, started_at, used_tools=used_tools)
         return response
 
     # ----------------------------------------------------------------------
@@ -350,3 +377,66 @@ class MasterAgent:
             return {"reply": reply}
         except Exception as e:
             return {"reply": "Fehler im Thinker-Assist.", "info": str(e)}
+
+    def run_self_improvement(self) -> dict:
+        """
+        Führt Phase-6-Self-Improvement aus.
+        Nutzt SelfImprovementAgent.run_analysis().
+
+        Rückgabewert:
+            dict – die neu erstellten Strategien.
+        """
+        try:
+            return self.self_improvement.run_analysis()
+        except Exception:
+            return {"ok": False, "error": "Self-improvement failed"}
+
+    def _log_task_feedback(
+        self,
+        core_request: CoreRequest,
+        response: CoreResponse,
+        started_at: float,
+        used_tools=None,
+    ):
+        if used_tools is None:
+            used_tools = []
+        try:
+            duration = max(time.perf_counter() - started_at, 0.0)
+
+            goal = ""
+            if core_request.input_type == "chat":
+                goal = core_request.message or ""
+            elif core_request.input_type == "tool":
+                goal = core_request.tool_name or ""
+            elif core_request.input_type in {"planner", "planner_agent"}:
+                payload = core_request.tool_payload or {}
+                goal = str(payload.get("task") or payload.get("goal") or "")
+
+            error_entries = []
+            for err in response.errors or []:
+                try:
+                    if hasattr(err, "dict"):
+                        error_entries.append(err.dict())
+                    elif hasattr(err, "model_dump"):
+                        error_entries.append(err.model_dump())
+                    else:
+                        error_entries.append(str(err))
+                except Exception:
+                    error_entries.append(str(err))
+
+            entry = {
+                "task_id": response.trace_id,
+                "user_id": core_request.user_id,
+                "session_id": core_request.session_id,
+                "input_type": core_request.input_type,
+                "goal": goal,
+                "result_quality": "unknown",
+                "used_tools": used_tools,
+                "plan_structure": response.planner_trace or [],
+                "duration_sec": duration,
+                "errors": error_entries,
+            }
+
+            self.task_logger.log_entry(entry)
+        except Exception:
+            pass
