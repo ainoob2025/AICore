@@ -1,0 +1,24 @@
+models:
+  main:
+    provider: "lm_studio"
+    model_id: "josiefied-qwen3-4b-instruct-2507-abliterated-v1-i1@q5_k_m"
+    purpose: "chat"
+    description: "Primary chat and orchestration model. Talks to the user in German, uses English internally."
+
+  thinking:
+    provider: "lm_studio"
+    model_id: "qwen3-4b-thinking-2507-abliterated-i1"
+    purpose: "deep_reasoning"
+    description: "Thinking model for complex reasoning steps. Used only as a background tool when the core explicitly requests it."
+
+  vision:
+    provider: "lm_studio"
+    model_id: "qwen3-vl-8b-nsfw-caption-v4-i1"
+    purpose: "vision"
+    description: "Vision-capable model for image and multimodal analysis."
+
+  embedding:
+    provider: "lm_studio"
+    model_id: "text-embedding-jina-embeddings-v4-vllm-retrieval-i1"
+    purpose: "embedding"
+    description: "Embedding model for retrieval, RAG and semantic memory."

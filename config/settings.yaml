@@ -1,0 +1,29 @@
+version: 1
+
+project:
+  root: "C:\AI\AICore"
+
+paths:
+  config_dir: "C:\AI\AICore\config"
+  data_dir: "C:\AI\AICore\data"
+  models_dir: "C:\AI\AICore\models"
+  docs_dir: "C:\AI\AICore\docs"
+  reference_dir: "C:\AI\AICore\reference"
+
+language:
+  default_user_language: "de"
+  internal_language: "en"
+
+services:
+  gateway:
+    port: 10010
+  kernel:
+    port: 10020
+  rag:
+    port: 10040
+  benchmark:
+    port: 10050
+  policy:
+    port: 10060
+  metrics:
+    port: 10080

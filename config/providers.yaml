@@ -1,0 +1,16 @@
+providers:
+  lm_studio:
+    type: "lm_studio"
+    base_url: "http://localhost:10030"
+    api_key: null
+    endpoints:
+      models: "/v1/models"
+      chat_completions: "/v1/chat/completions"
+      completions: "/v1/completions"
+      responses: "/v1/responses"
+      embeddings: "/v1/embeddings"
+    capabilities:
+      chat: true
+      thinking: true
+      vision: true
+      embeddings: true

@@ -1,0 +1,38 @@
+tools:
+  echo:
+    kind: "builtin"
+    runtime: "core_runtime"
+    enabled: true
+
+  file:
+    kind: "builtin"
+    runtime: "core_runtime"
+    enabled: true
+
+  browser:
+    kind: "builtin"
+    runtime: "core_runtime"
+    enabled: true
+
+  terminal:
+    kind: "builtin"
+    runtime: "core_runtime"
+    enabled: true
+
+  vision:
+    kind: "model_tool"
+    runtime: "core_runtime"
+    model: "vision"
+    enabled: true
+
+  thinking:
+    kind: "model_tool"
+    runtime: "core_runtime"
+    model: "thinking"
+    enabled: true
+
+  rag:
+    kind: "service_tool"
+    runtime: "core_runtime"
+    service: "rag"
+    enabled: true
