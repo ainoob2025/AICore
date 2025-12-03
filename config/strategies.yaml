@@ -1,9 +1,0 @@
-strategies:
-  default:
-    description: "Default strategy configuration for AI Core."
-
-    planner:
-      use_thinking_model: true
-
-    tools:
-      prefer_thinking_for_complex_tasks: true

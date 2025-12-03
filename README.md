@@ -1,11 +1,4 @@
 # AICore
-My Local AI-OS
-
-# AI CORE – MASTERPLAN (USER)
-
-Dieses Dokument beschreibt das Zielbild, die Architektur und den Phasenplan des lokalen KI‑Systems "AI Core". Es ist so geschrieben, dass es ohne weiteren Kontext verstanden werden kann.
-
----
 
 ## 1. Zielbild
 

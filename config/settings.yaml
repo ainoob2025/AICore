@@ -1,29 +1,14 @@
-version: 1
+ports:
+  gateway: 10010
+  api: 8000
+  websocket: 8001
 
-project:
-  root: "C:\AI\AICore"
+defaults:
+  max_concurrent_requests: 10
+  timeout_seconds: 30
+  log_level: info
 
-paths:
-  config_dir: "C:\AI\AICore\config"
-  data_dir: "C:\AI\AICore\data"
-  models_dir: "C:\AI\AICore\models"
-  docs_dir: "C:\AI\AICore\docs"
-  reference_dir: "C:\AI\AICore\reference"
-
-language:
-  default_user_language: "de"
-  internal_language: "en"
-
-services:
-  gateway:
-    port: 10010
-  kernel:
-    port: 10020
-  rag:
-    port: 10040
-  benchmark:
-    port: 10050
-  policy:
-    port: 10060
-  metrics:
-    port: 10080
+system:
+  memory_size_gb: 8
+  cpu_cores: 4
+  gpu_enabled: false

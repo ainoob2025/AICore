@@ -1,25 +1,5 @@
-"""
-Core kernel package for AI Core.
+from .master_agent import MasterAgent
+from .types import Request, Response
+from .planner import Planner
 
-This module exposes the fundamental request/response and error types
-used internally by the MasterAgent and other core components.\n"""
-
-from .types import (
-    Channel,
-    Role,
-    Message,
-    ToolCall,
-    KernelRequest,
-    KernelResponse,
-    KernelError,
-)
-
-__all__ = [
-    "Channel",
-    "Role",
-    "Message",
-    "ToolCall",
-    "KernelRequest",
-    "KernelResponse",
-    "KernelError",
-]
+__all__ = ["MasterAgent", "Request", "Response", "Planner"]

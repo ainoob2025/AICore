@@ -1,133 +1,144 @@
 """
-Internal kernel base types for AI Core.
+Type definitions for the Kernel and Gateway components.
 
-These types define the canonical internal structures for requests,
-responses and errors handled by the MasterAgent and core services.
-
-Design principles:
-- Pure Python dataclasses and enums (no external dependencies).
-- Stable field names that map cleanly to JSON for transport.
-- Explicit separation of internal roles/channels from HTTP-layer schemas.
+Defines data structures, request/response types, error codes,
+and protocol specifications for internal communication.
 """
 
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
-
-
-class Channel(str, Enum):
+class Request:
     """
-    High-level channel indicating the type of operation requested from
-    the kernel.
-
-    - chat:    Standard conversational requests.
-    - tool:    Direct tool invocations.
-    - planner: Planner-centric operations (plans, evaluations).
-    - agent:   Direct agent operations (start, step, inspect).
+    Base class for all incoming requests to the system.
+    
+    Attributes:
+        - type: Type of request ('chat', 'tool_call', 'plan', 'agent_interaction')
+        - message: User-facing message or payload
+        - context: Additional information and metadata
+        - timestamp: Time when the request was received
     """
-    CHAT = "chat"
-    TOOL = "tool"
-    PLANNER = "planner"
-    AGENT = "agent"
+    def __init__(self, request_type: str, message: str = None, 
+                 context: dict = None, timestamp: float = None):
+        self.type = request_type
+        self.message = message or ''
+        self.context = context or {}
+        self.timestamp = timestamp or time.time()
+
+    def to_dict(self) -> dict:
+        """
+        Convert the request instance to a dictionary for serialization.
+        """
+        return {
+            'type': self.type,
+            'message': self.message,
+            'context': self.context,
+            'timestamp': self.timestamp
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Request':
+        """
+        Create a request instance from a dictionary.
+        """
+        return cls(
+            request_type=data['type'],
+            message=data.get('message'),
+            context=data.get('context', {}),
+            timestamp=data.get('timestamp')
+        )
 
 
-class Role(str, Enum):
+class Response:
     """
-    Generic message role used across the system.
-    Compatible with common chat schemas.
+    Base class for all system responses.
+    
+    Attributes:
+        - status: Status of the response ('success', 'error', 'pending')
+        - message: Human-readable message
+        - result: Optional payload or content
+        - timestamp: Time when the response was generated
     """
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    TOOL = "tool"
+    def __init__(self, status: str, message: str = None, 
+                 result: dict = None, timestamp: float = None):
+        self.status = status
+        self.message = message or ''
+        self.result = result or {}
+        self.timestamp = timestamp or time.time()
 
-@dataclass
-class Message:
+    def to_dict(self) -> dict:
+        """
+        Convert the response instance to a dictionary for serialization.
+        """
+        return {
+            'status': self.status,
+            'message': self.message,
+            'result': self.result,
+            'timestamp': self.timestamp
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Response':
+        """
+        Create a response instance from a dictionary.
+        """
+        return cls(
+            status=data['status'],
+            message=data.get('message'),
+            result=data.get('result', {}),
+            timestamp=data.get('timestamp')
+        )
+
+
+class Error:
     """
-    Internal message representation used by the kernel.
-
-    Notes:
-    - `role` uses the Role enum above.
-    - `content` is plain text for now; richer content types can be added later.
-    - `metadata` allows attaching small, structured hints (e.g. source, tags).
+    Base class for system errors.
+    
+    Attributes:
+        - code: Error code (e.g., '404', '503')
+        - message: Human-readable error message
+        - details: Additional information about the error
+        - timestamp: Time when the error occurred
     """
-    role: Role
-    content: str
-    name: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    def __init__(self, error_code: str, message: str = None, 
+                 details: dict = None, timestamp: float = None):
+        self.code = error_code
+        self.message = message or ''
+        self.details = details or {}
+        self.timestamp = timestamp or time.time()
 
-@dataclass
-class ToolCall:
+    def to_dict(self) -> dict:
+        """
+        Convert the error instance to a dictionary for serialization.
+        """
+        return {
+            'code': self.code,
+            'message': self.message,
+            'details': self.details,
+            'timestamp': self.timestamp
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Error':
+        """
+        Create an error instance from a dictionary.
+        """
+        return cls(
+            error_code=data['code'],
+            message=data.get('message'),
+            details=data.get('details', {}),
+            timestamp=data.get('timestamp')
+        )
+
+
+class RequestType:
     """
-    Representation of a single tool call issued by the kernel or a model.
+    Enum-like class for request types.
+    
+    Values:
+        - CHAT: For user chat interactions
+        - TOOL_CALL: For tool usage requests
+        - PLAN: For goal decomposition and task planning
+        - AGENT_INTERACTION: For agent creation or activation
     """
-    id: str
-    name: str
-    arguments: Dict[str, Any]
-
-@dataclass
-class KernelError:
-    """
-    Structured error information propagated inside the kernel.
-
-    - `code`:   Short, stable machine-readable error code.
-    - `message`:Human-readable description (English, internal).
-    - `details`:Optional structured payload with extra information.
-    """
-    code: str
-    message: str
-    details: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
-class KernelRequest:
-    """
-    Canonical internal request type for the kernel.
-
-    This is what the gateway and other services should translate into
-    before handing a task to the MasterAgent.
-    """
-    request_id: str
-    channel: Channel
-
-    # Identity and session
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
-
-    # Conversation / content
-    messages: List[Message] = field(default_factory=list)
-
-    # Localisation & models
-    locale: Optional[str] = None  # e.g. "de-DE", "en-US"
-    model: Optional[str] = None   # logical model identifier, not a provider ID
-
-    # Execution hints
-    tools: Optional[List[str]] = None
-    max_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-
-    # Free-form metadata
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
-class KernelResponse:
-    """
-    Canonical internal response type from the kernel.
-
-    The kernel should always attempt to return a KernelResponse object:
-    - `messages` contains the assistant-side messages produced.
-    - `tool_calls` lists any tool invocations requested by the model.
-    - `finished` indicates whether this response is final for the request.
-    - `error` is populated if the request failed.
-    """
-    request_id: str
-    session_id: Optional[str]
-
-    messages: List[Message] = field(default_factory=list)
-    tool_calls: List[ToolCall] = field(default_factory=list)
-
-    finished: bool = True
-    error: Optional[KernelError] = None
-
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    CHAT = 'chat'
+    TOOL_CALL = 'tool_call'
+    PLAN = 'plan'
+    AGENT_INTERACTION = 'agent_interaction'

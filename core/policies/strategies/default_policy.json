@@ -1,0 +1,1 @@
+{\n  "version": "1.0",\n  "description": "Default policy for all tasks.",\n  "rules": {\n    "planner_timeout": 30,\n    "agent_retries": 2,\n    "max_concurrent_tasks": 5\n  },\n  "metadata": {\n    "created_at": "2024-01-15T10:00:00Z",\n    "last_updated": "2024-01-15T10:00:00Z"\n  }\n}

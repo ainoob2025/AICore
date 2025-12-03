@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "ai-core"
+version = "1.0.0"
+description = "Lokales KI-Betriebssystem"
+authors = ["Josie <josie@ai-core.local>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.104.0"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+pydantic = "^2.5.0"
+streamlit = "^1.29.0"
+requests = "^2.31.0"
+torch = {version = "2.1.0", extras = ["cu121"]}
+transformers = {version = "4.36.0", extras = ["torch"]}
+sentence-transformers = "^2.2.2"
+faiss-cpu = "^1.7.4"
+chromadb = "^0.4.18"
+langchain = "^0.0.350"
+SpeechRecognition = "^3.10.0"
+pyaudio = "^0.2.11"
+pydub = "^0.25.1"
+moviepy = "^1.0.3"
+numpy = "^1.24.0"
+tqdm = "^4.66.0"
+python-dotenv = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
