@@ -7,7 +7,7 @@ models:
 
   thinking:
     provider: "lm_studio"
-    model_id: "qwen3-4b-thinking-2507-abliterated-i1"
+    model_id: "qwen3-4b-thinking-2507-kimi-k2-thinking-distill-i1"
     purpose: "deep_reasoning"
     description: "Thinking model for complex reasoning steps. Used only as a background tool when the core explicitly requests it."
 
