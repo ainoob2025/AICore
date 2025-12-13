@@ -18,6 +18,7 @@ from core.memory.context_policy import ContextPolicy
 from core.memory.memory_os import MemoryOS
 from core.rag.rag_engine import RAGEngine
 from core.tools.tool_router import ToolRouter
+from core.tools.tool_canonicalization import canonicalize as canonicalize_tool_call
 
 
 def _read_text(path: str) -> str:
@@ -127,6 +128,40 @@ class MasterAgent:
         self._warmup_ok = False
         self._warmup_ms = 0
         self._warmup_error: Optional[Dict[str, Any]] = None
+
+    def health_llm(self) -> Tuple[bool, Dict[str, Any]]:
+        base_url = getattr(self.llm, "base_url", "").rstrip("/")
+        model_id = getattr(self.llm, "model_id", "")
+        url = f"{base_url}/v1/models" if base_url else "/v1/models"
+
+        details: Dict[str, Any] = {
+            "base_url": base_url,
+            "model_id": model_id,
+            "url": url,
+        }
+
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                code = int(getattr(resp, "status", 0) or 0)
+                raw = resp.read()
+            details["status_code"] = code
+            try:
+                obj = json.loads(raw.decode("utf-8", errors="replace"))
+                details["models_count"] = len(obj.get("data") or []) if isinstance(obj, dict) else None
+            except Exception:
+                details["models_count"] = None
+            return (200 <= code < 300), details
+        except urllib.error.HTTPError as exc:
+            details["status_code"] = int(exc.code)
+            try:
+                details["body"] = exc.read().decode("utf-8", errors="replace")[:2000]
+            except Exception:
+                details["body"] = ""
+            return False, details
+        except Exception as exc:
+            details["error"] = {"type": type(exc).__name__, "message": str(exc)}
+            return False, details
 
     def warmup_status(self) -> Dict[str, Any]:
         with self._warmup_lock:
@@ -265,7 +300,6 @@ class MasterAgent:
                 out["details"] = {"ctx": ctx}
                 return out
 
-            # RESUME: if plan_id provided and exists, load plan and continue without re-planning
             if isinstance(plan_id, str) and plan_id:
                 try:
                     state = self.plan_store.load(plan_id)
@@ -281,7 +315,6 @@ class MasterAgent:
                     out["details"] = {"type": type(exc).__name__, "message": str(exc), "plan_id": plan_id}
                     return out
 
-            # If not resumed, do normal LLM planning + normalization
             llm_plan_text = ""
             if not resumed:
                 system = (
@@ -332,7 +365,6 @@ class MasterAgent:
                 out["plan"] = plan
                 out["checkpoint"] = self._checkpoint(plan, session_id, "running")
 
-            # Execute remaining tool batches from plan
             all_tool_results: List[Dict[str, Any]] = []
             t_tools0 = time.perf_counter()
 
@@ -354,7 +386,7 @@ class MasterAgent:
                     method = c.get("method")
                     args = c.get("args") or {}
                     step_id = c.get("_step_id")
-                    name2, method2, args2 = self._canonicalize_tool_call(name, method, args)
+                    name2, method2, args2 = canonicalize_tool_call(name, method, args)
                     router_calls.append({"name": name2, "method": method2, "args": args2})
                     step_ids.append(step_id)
 
@@ -371,7 +403,6 @@ class MasterAgent:
             timing_ms["planner_tools"] = int((time.perf_counter() - t_tools0) * 1000)
             out["tool_results"] = all_tool_results
 
-            # Final answer synthesis
             system2 = "Return STRICT JSON ONLY: {\"final\": str}. No extra keys. No extra text."
 
             t0 = time.perf_counter()
@@ -415,29 +446,6 @@ class MasterAgent:
             timing_ms["total"] = int((time.perf_counter() - t_total0) * 1000)
             out["tool_calls_count"] = tool_calls_count
             out["tool_batches"] = tool_batches
-
-    def _canonicalize_tool_call(self, name: Any, method: Any, args: Any) -> Tuple[str, str, Dict[str, Any]]:
-        n = str(name).strip() if isinstance(name, str) else ""
-        m = str(method).strip() if isinstance(method, str) else ""
-        a = args if isinstance(args, dict) else {}
-
-        if n == "browser":
-            if m in ("fetch", "get", "get_url", "download", "httpget"):
-                m = "http_get"
-        elif n == "terminal":
-            if m in ("exec", "run", "cmd"):
-                m = "run_cmd"
-        elif n == "file":
-            if m == "read":
-                m = "read_text"
-            elif m == "write":
-                m = "write_text"
-            elif m in ("ls", "dir"):
-                m = "list_dir"
-            elif m == "mkdir":
-                m = "mkdirs"
-
-        return n, m, a
 
     def _parse_best_json(self, text: str) -> Optional[Dict[str, Any]]:
         if not isinstance(text, str):

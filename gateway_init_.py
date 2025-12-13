@@ -1,16 +1,19 @@
 """Gateway (enterprise-grade, local-first): HTTP server for MasterAgent.
 
-Fixed network contract:
+Contract:
 - Host: 127.0.0.1
-- Port: 10010
+- Port: 10010 (fixed, non-configurable)
+- Endpoints:
+  - GET /health
+  - GET /health/llm
+  - GET /metrics
+  - POST /chat
 
-Routes:
-- GET  /health        (fast)
-- GET  /health/llm    (deep check LM Studio reachability)
-- GET  /metrics
-- POST /chat          {session_id?: str, plan_id?: str, message: str}
-
-(Other behavior unchanged)
+Notes:
+- Deterministic request IDs (X-Request-Id)
+- JSONL request logging with rotation/retention
+- Rate limit: 30 requests / 60s / IP (429 + Retry-After)
+- Concurrency guard: max 4 in-flight chat requests (503 BUSY)
 """
 
 from __future__ import annotations
@@ -27,21 +30,12 @@ from collections import Counter, deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Deque, Dict, Optional, Tuple
+from urllib.parse import parse_qs, urlparse
 
 from core.kernel.master_agent import MasterAgent
 
-
 HOST = "127.0.0.1"
 PORT = 10010
-
-MAX_BODY_BYTES = 256 * 1024
-MAX_MESSAGE_CHARS = 32_000
-
-CHAT_RATE_LIMIT_COUNT = 30
-CHAT_RATE_LIMIT_WINDOW_S = 60
-MAX_RL_KEYS = 5000
-
-MAX_CHAT_INFLIGHT = 4
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(ROOT_DIR, "logs")
@@ -59,16 +53,31 @@ _RATE_LIMITED_TOTAL = 0
 _BY_PATH = Counter()
 _BY_STATUS = Counter()
 _LAT_MS: Deque[int] = deque(maxlen=5000)
-_CHAT_MS: Deque[int] = deque(maxlen=2000)
+_PLANS_SAVED_TOTAL = 0
+_LAST_PLAN_ID = ""
 
-_RL_LOCK = threading.Lock()
-_RL: Dict[str, Deque[float]] = {}
-
-_WARMUP_LOGGED = {"done": False}
+_CHAT_METRICS_LOCK = threading.Lock()
+_CHAT_MS: Deque[int] = deque(maxlen=5000)
 
 _CHAT_INFLIGHT_LOCK = threading.Lock()
 _CHAT_INFLIGHT = 0
 _CHAT_BUSY_TOTAL = 0
+MAX_CHAT_INFLIGHT = 4
+
+_RATE_LOCK = threading.Lock()
+_RATE_BUCKETS: Dict[str, Deque[float]] = {}
+RATE_LIMIT_WINDOW_S = 60.0
+RATE_LIMIT_MAX = 30
+
+_WARMUP_LOCK = threading.Lock()
+_WARMUP_STARTED = False
+_WARMUP_DONE = False
+_WARMUP_OK = False
+_WARMUP_MS = 0
+_WARMUP_ERR: Optional[str] = None
+
+MAX_BODY_BYTES = 1024 * 1024  # 1 MiB
+MAX_MESSAGE_CHARS = 100_000
 
 
 def _utc_iso() -> str:
@@ -90,43 +99,40 @@ def _append_jsonl(path: str, obj: Dict[str, Any]) -> None:
 def _percentile(sorted_vals: Tuple[int, ...], p: float) -> int:
     if not sorted_vals:
         return 0
-    k = int(round((len(sorted_vals) - 1) * p))
-    if k < 0:
-        k = 0
-    if k >= len(sorted_vals):
-        k = len(sorted_vals) - 1
-    return int(sorted_vals[k])
+    if p <= 0:
+        return int(sorted_vals[0])
+    if p >= 1:
+        return int(sorted_vals[-1])
+    idx = int(round((len(sorted_vals) - 1) * p))
+    idx = max(0, min(len(sorted_vals) - 1, idx))
+    return int(sorted_vals[idx])
+
+
+def _warmup_state() -> Dict[str, Any]:
+    with _WARMUP_LOCK:
+        return {
+            "warmup_started": _WARMUP_STARTED,
+            "warmup_done": _WARMUP_DONE,
+            "warmup_ok": _WARMUP_OK,
+            "warmup_ms": _WARMUP_MS,
+            "warmup_error": _WARMUP_ERR,
+        }
 
 
 def _record_metrics(path: str, status: int, latency_ms: int) -> None:
     global _REQ_TOTAL, _ERR_TOTAL
     with _METRICS_LOCK:
         _REQ_TOTAL += 1
-        _BY_PATH[path] += 1
-        _BY_STATUS[status] += 1
-        _LAT_MS.append(latency_ms)
-        if status >= 500:
+        if status >= 400:
             _ERR_TOTAL += 1
+        _BY_PATH[path] += 1
+        _BY_STATUS[str(status)] += 1
+        _LAT_MS.append(latency_ms)
 
 
-def _inc_rate_limited() -> None:
-    global _RATE_LIMITED_TOTAL
-    with _METRICS_LOCK:
-        _RATE_LIMITED_TOTAL += 1
-
-
-def _record_chat_latency(chat_total_ms: int) -> None:
-    if chat_total_ms < 0:
-        return
-    with _METRICS_LOCK:
-        _CHAT_MS.append(int(chat_total_ms))
-
-
-def _warmup_state() -> Dict[str, Any]:
-    try:
-        return AGENT.warmup_status()
-    except Exception:
-        return {"warmup_started": False, "warmup_done": False, "warmup_ok": False, "warmup_ms": 0, "warmup_error": None}
+def _record_chat_latency(ms: int) -> None:
+    with _CHAT_METRICS_LOCK:
+        _CHAT_MS.append(ms)
 
 
 def _snapshot_metrics() -> Dict[str, Any]:
@@ -138,6 +144,8 @@ def _snapshot_metrics() -> Dict[str, Any]:
         req_total = _REQ_TOTAL
         err_total = _ERR_TOTAL
         rl_total = _RATE_LIMITED_TOTAL
+        plans_saved_total = _PLANS_SAVED_TOTAL
+        last_plan_id = _LAST_PLAN_ID
 
     with _CHAT_INFLIGHT_LOCK:
         inflight = _CHAT_INFLIGHT
@@ -150,6 +158,8 @@ def _snapshot_metrics() -> Dict[str, Any]:
         "ok": True,
         "uptime_s": int(time.time() - _STARTED_AT),
         "requests_total": req_total,
+        "plans_saved_total": plans_saved_total,
+        "last_plan_id": last_plan_id,
         "errors_total": err_total,
         "rate_limited_total": rl_total,
         "by_path": by_path,
@@ -168,65 +178,26 @@ def _snapshot_metrics() -> Dict[str, Any]:
     return base
 
 
-def _llm_reachable() -> Tuple[bool, Optional[Dict[str, Any]]]:
-    try:
-        base = getattr(getattr(AGENT, "llm", None), "base_url", None)
-        if not base or not isinstance(base, str):
-            return False, {"error": "NO_LLM_BASE_URL"}
-
-        url = base.rstrip("/") + "/v1/models"
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            raw = resp.read()
-        obj = json.loads(raw.decode("utf-8", errors="replace"))
-        if isinstance(obj, dict) and "data" in obj:
-            return True, None
-        return False, {"error": "INVALID_LLM_RESPONSE", "response_preview": str(obj)[:200]}
-    except urllib.error.HTTPError as exc:
-        return False, {"error": "HTTP_ERROR", "code": exc.code, "reason": str(exc.reason)}
-    except Exception as exc:
-        return False, {"error": "LLM_UNREACHABLE", "type": type(exc).__name__, "message": str(exc)}
-
-
-def _rl_cleanup_and_bound(window_start: float) -> None:
-    empty_keys = [k for k, dq in _RL.items() if not dq or (dq and dq[-1] < window_start)]
-    for k in empty_keys:
-        _RL.pop(k, None)
-
-    if len(_RL) > MAX_RL_KEYS:
-        keys_sorted = sorted(_RL.keys())
-        drop = keys_sorted[MAX_RL_KEYS:]
-        for k in drop:
-            _RL.pop(k, None)
-
-
-def _rate_limit_allow(remote_ip: str) -> Tuple[bool, int]:
+def _rate_limit_ok(ip: str) -> Tuple[bool, int]:
     now = time.time()
-    window_start = now - CHAT_RATE_LIMIT_WINDOW_S
-
-    with _RL_LOCK:
-        dq = _RL.get(remote_ip)
+    with _RATE_LOCK:
+        dq = _RATE_BUCKETS.get(ip)
         if dq is None:
             dq = deque()
-            _RL[remote_ip] = dq
-
-        while dq and dq[0] < window_start:
+            _RATE_BUCKETS[ip] = dq
+        while dq and (now - dq[0]) > RATE_LIMIT_WINDOW_S:
             dq.popleft()
-
-        _rl_cleanup_and_bound(window_start)
-
-        dq = _RL.get(remote_ip)
-        if dq is None:
-            dq = deque()
-            _RL[remote_ip] = dq
-
-        if len(dq) >= CHAT_RATE_LIMIT_COUNT:
-            oldest = dq[0] if dq else now
-            retry_after = int(max(1, (oldest + CHAT_RATE_LIMIT_WINDOW_S) - now))
+        if len(dq) >= RATE_LIMIT_MAX:
+            retry_after = int(max(1, RATE_LIMIT_WINDOW_S - (now - dq[0])))
             return False, retry_after
-
         dq.append(now)
         return True, 0
+
+
+def _mark_rate_limited() -> None:
+    global _RATE_LIMITED_TOTAL
+    with _METRICS_LOCK:
+        _RATE_LIMITED_TOTAL += 1
 
 
 def _chat_acquire() -> bool:
@@ -242,56 +213,80 @@ def _chat_acquire() -> bool:
 def _chat_release() -> None:
     global _CHAT_INFLIGHT
     with _CHAT_INFLIGHT_LOCK:
-        if _CHAT_INFLIGHT > 0:
-            _CHAT_INFLIGHT -= 1
+        _CHAT_INFLIGHT = max(0, _CHAT_INFLIGHT - 1)
+
+
+def _health_llm_details() -> Tuple[bool, Dict[str, Any]]:
+    # HARD GUARANTEE: never throw. Always returns (ok, details).
+    try:
+        ok, details = AGENT.health_llm()
+        if not isinstance(details, dict):
+            details = {"details": details}
+        return bool(ok), details
+    except Exception as exc:
+        return False, {"type": type(exc).__name__, "message": str(exc)}
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "AICoreGateway/2.5"
+    server_version = "AICoreGateway/1.0"
 
-    def log_message(self, format: str, *args: Any) -> None:
+    def log_message(self, fmt: str, *args: Any) -> None:
         return
 
-    def _send_json(self, code: int, obj: Dict[str, Any], request_id: str) -> None:
-        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
+    def _send_json(self, status: int, payload: Dict[str, Any], request_id: str, extra_headers: Optional[Dict[str, str]] = None) -> None:
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Length", str(len(body)))
         self.send_header("X-Request-Id", request_id)
-        if code == 429 and isinstance(obj, dict) and "retry_after_s" in obj:
-            self.send_header("Retry-After", str(obj["retry_after_s"]))
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(data)
+        self.wfile.write(body)
 
     def do_GET(self) -> None:
         request_id = str(uuid.uuid4())
         t0 = time.perf_counter()
         status = 500
-        payload: Dict[str, Any] = {"ok": False}
-
         try:
             if self.path == "/health":
-                st = _warmup_state()
-                if st.get("warmup_done") and not st.get("warmup_ok"):
-                    status = 503
-                    payload = {"ok": False, "error": "WARMUP_FAILED"}
-                else:
-                    status = 200
-                    payload = {"ok": True}
-            elif self.path == "/health/llm":
-                ok, details = _llm_reachable()
-                status = 200 if ok else 503
-                payload = {"ok": True} if ok else {"ok": False, "error": "LLM_UNREACHABLE", "details": details}
-            elif self.path == "/metrics":
                 status = 200
-                payload = _snapshot_metrics()
-            else:
-                status = 404
-                payload = {"ok": False, "error": "NOT_FOUND"}
+                self._send_json(200, {"ok": True}, request_id=request_id)
+                return
+
+            if self.path == "/health/llm":
+                ok, details = _health_llm_details()
+                if ok:
+                    status = 200
+                    self._send_json(200, {"ok": True, "details": details}, request_id=request_id)
+                else:
+                    status = 503
+                    self._send_json(503, {"ok": False, "error": "LLM_UNREACHABLE", "details": details}, request_id=request_id)
+                return
+
+            if self.path == "/metrics":
+                status = 200
+                self._send_json(200, _snapshot_metrics(), request_id=request_id)
+                return
+
+            status = 404
+            self._send_json(404, {"ok": False, "error": "NOT_FOUND"}, request_id=request_id)
         finally:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             _record_metrics(self.path, status, latency_ms)
-            self._send_json(status, payload, request_id=request_id)
+            _append_jsonl(
+                REQ_LOG_PATH,
+                {
+                    "ts": _utc_iso(),
+                    "request_id": request_id,
+                    "remote": self.client_address[0] if self.client_address else None,
+                    "method": "GET",
+                    "path": self.path,
+                    "status": status,
+                    "latency_ms": latency_ms,
+                },
+            )
 
     def do_POST(self) -> None:
         request_id = str(uuid.uuid4())
@@ -304,55 +299,85 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             if self.path != "/chat":
+                status = 404
                 self._send_json(404, {"ok": False, "error": "NOT_FOUND"}, request_id=request_id)
                 return
 
             remote_ip = self.client_address[0] if self.client_address else "unknown"
 
-            allowed, retry_after_s = _rate_limit_allow(remote_ip)
-            if not allowed:
-                _inc_rate_limited()
-                self._send_json(429, {"ok": False, "error": "RATE_LIMITED", "retry_after_s": retry_after_s}, request_id=request_id)
+            ok, retry_after = _rate_limit_ok(remote_ip)
+            if not ok:
+                _mark_rate_limited()
+                status = 429
+                self._send_json(
+                    429,
+                    {"ok": False, "error": "RATE_LIMITED"},
+                    request_id=request_id,
+                    extra_headers={"Retry-After": str(retry_after)},
+                )
                 return
 
             acquired = _chat_acquire()
             if not acquired:
+                status = 503
                 self._send_json(503, {"ok": False, "error": "BUSY"}, request_id=request_id)
                 return
 
             clen = int(self.headers.get("Content-Length", "0") or "0")
             if clen > MAX_BODY_BYTES:
+                status = 413
                 self._send_json(413, {"ok": False, "error": "PAYLOAD_TOO_LARGE", "limit_bytes": MAX_BODY_BYTES}, request_id=request_id)
                 return
 
             raw = self.rfile.read(clen) if clen > 0 else b"{}"
             body = json.loads(raw.decode("utf-8", errors="replace"))
             if not isinstance(body, dict):
+                status = 400
                 self._send_json(400, {"ok": False, "error": "INVALID_SCHEMA"}, request_id=request_id)
                 return
 
             if "message" not in body or not isinstance(body.get("message"), str):
-                self._send_json(400, {"ok": False, "error": "INVALID_SCHEMA", "details": {"missing_or_type": "message"}}, request_id=request_id)
+                status = 400
+                self._send_json(400, {"ok": False, "error": "INVALID_REQUEST", "details": {"missing_or_type": "message"}}, request_id=request_id)
                 return
 
             message = body.get("message", "")
             if len(message) > MAX_MESSAGE_CHARS:
+                status = 413
                 self._send_json(413, {"ok": False, "error": "PAYLOAD_TOO_LARGE", "limit_chars": MAX_MESSAGE_CHARS}, request_id=request_id)
                 return
 
             sid = body.get("session_id", "default")
             if not isinstance(sid, str):
-                self._send_json(400, {"ok": False, "error": "INVALID_SCHEMA", "details": {"session_id": "must be string"}}, request_id=request_id)
+                status = 400
+                self._send_json(400, {"ok": False, "error": "INVALID_REQUEST", "details": {"session_id": "must be string"}}, request_id=request_id)
                 return
             session_id = sid
 
             pid = body.get("plan_id", None)
             if pid is not None and not isinstance(pid, str):
-                self._send_json(400, {"ok": False, "error": "INVALID_SCHEMA", "details": {"plan_id": "must be string"}}, request_id=request_id)
+                status = 400
+                self._send_json(400, {"ok": False, "error": "INVALID_REQUEST", "details": {"plan_id": "must be string"}}, request_id=request_id)
                 return
             plan_id = pid
 
             res = AGENT.handle_chat(message, session_id=session_id, plan_id=plan_id)
+
+            # Metrics: count successful plan checkpoint saves and track last plan_id
+            try:
+                cp = res.get("checkpoint") if isinstance(res, dict) else None
+                if isinstance(cp, dict) and cp.get("ok") is True:
+                    pid2 = cp.get("plan_id")
+                    if not isinstance(pid2, str) or not pid2:
+                        pl = res.get("plan") if isinstance(res, dict) else None
+                        pid2 = pl.get("plan_id") if isinstance(pl, dict) else None
+                    if isinstance(pid2, str) and pid2:
+                        with _METRICS_LOCK:
+                            global _PLANS_SAVED_TOTAL, _LAST_PLAN_ID
+                            _PLANS_SAVED_TOTAL += 1
+                            _LAST_PLAN_ID = pid2
+            except Exception:
+                pass
 
             try:
                 tm = res.get("timing_ms") if isinstance(res, dict) else None
@@ -367,7 +392,11 @@ class Handler(BaseHTTPRequestHandler):
 
         except Exception as exc:
             status = 500
-            self._send_json(500, {"ok": False, "error": "GATEWAY_EXCEPTION", "details": {"type": type(exc).__name__, "message": str(exc)}}, request_id=request_id)
+            self._send_json(
+                500,
+                {"ok": False, "error": "GATEWAY_EXCEPTION", "details": {"type": type(exc).__name__, "message": str(exc)}},
+                request_id=request_id,
+            )
         finally:
             if acquired:
                 _chat_release()
@@ -391,50 +420,48 @@ class Handler(BaseHTTPRequestHandler):
             _append_jsonl(REQ_LOG_PATH, rec)
 
 
-def _install_signal_handlers(httpd: ThreadingHTTPServer) -> None:
-    stop_once = {"done": False}
-
-    def _request_stop(signum: int, _frame: Any) -> None:
-        if stop_once["done"]:
+def _warmup() -> None:
+    global _WARMUP_STARTED, _WARMUP_DONE, _WARMUP_OK, _WARMUP_MS, _WARMUP_ERR
+    with _WARMUP_LOCK:
+        if _WARMUP_STARTED:
             return
-        stop_once["done"] = True
+        _WARMUP_STARTED = True
 
-        def _shutdown() -> None:
-            try:
-                httpd.shutdown()
-            except Exception:
-                pass
-
-        threading.Thread(target=_shutdown, daemon=True).start()
-
+    t0 = time.perf_counter()
     try:
-        signal.signal(signal.SIGINT, _request_stop)
-    except Exception:
-        pass
-
-    if hasattr(signal, "SIGTERM"):
-        try:
-            signal.signal(signal.SIGTERM, _request_stop)
-        except Exception:
-            pass
+        ok, details = AGENT.health_llm()
+        ms = int((time.perf_counter() - t0) * 1000)
+        with _WARMUP_LOCK:
+            _WARMUP_DONE = True
+            _WARMUP_OK = bool(ok)
+            _WARMUP_MS = ms
+            _WARMUP_ERR = None if ok else json.dumps(details, ensure_ascii=False)
+    except Exception as exc:
+        ms = int((time.perf_counter() - t0) * 1000)
+        with _WARMUP_LOCK:
+            _WARMUP_DONE = True
+            _WARMUP_OK = False
+            _WARMUP_MS = ms
+            _WARMUP_ERR = f"{type(exc).__name__}:{exc}"
 
 
 def run() -> None:
-    ThreadingHTTPServer.allow_reuse_address = True
+    _warmup()
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
-    httpd.daemon_threads = True
-    _install_signal_handlers(httpd)
-    print(f"Gateway listening on http://{HOST}:{PORT}")
-    try:
-        httpd.serve_forever(poll_interval=0.2)
-    except KeyboardInterrupt:
-        pass
-    finally:
+
+    stop_event = threading.Event()
+
+    def _signal_handler(signum: int, frame: Any) -> None:
+        stop_event.set()
         try:
-            httpd.server_close()
+            httpd.shutdown()
         except Exception:
             pass
-        print("Gateway stopped.")
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":

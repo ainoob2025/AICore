@@ -13,6 +13,7 @@ from .terminal.terminal_tools import TerminalTools
 from .audio.audio_tools import AudioTools
 from .video.video_tools import VideoTools
 from .echo_tool import EchoTool
+from .ping_tool import PingTool
 
 
 class ToolCall(TypedDict):
@@ -45,6 +46,7 @@ class ToolRouter:
             "audio": AudioTools(),
             "video": VideoTools(),
             "echo": EchoTool(),
+            "ping": PingTool(),
         }
 
     def available_tools(self) -> List[str]:
@@ -115,3 +117,4 @@ if __name__ == "__main__":
     router = ToolRouter()
     print(router.available_tools())
     print(router.execute([{"name": "echo", "method": "echo", "args": {"text": "ping"}}]))
+    print(router.execute([{"name": "ping", "method": "get", "args": {}}]))

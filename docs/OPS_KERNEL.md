@@ -1,104 +1,32 @@
-# AI Core Kernel – Operations Contract
+# AI Core Kernel – Operations
 
 ## Scope
-This document defines the operational contract for:
+Operational contract for:
 - `core/kernel/master_agent.py` (MasterAgent)
 - `core/kernel/planner.py` (Planner)
-- `core/tools/tool_router.py` (ToolRouter integration point)
-- `core/kernel/plan_state_store.py` (PlanStateStore)
-
-This is an operations document (facts only): what exists, what is returned, what is guaranteed.
+- Plan state store: `.runtime/plans/<plan_id>.json`
 
 ## MasterAgent
-### Location
-- `core/kernel/master_agent.py`
-- Called by Gateway: `MasterAgent.handle_chat(message, session_id, plan_id=None) -> dict`
-
-### High-level Behavior
-- Planner-driven execution (DAG-style plan)
+- Planner-driven orchestration (plan → batches → ToolRouter → final)
 - Tool execution exclusively via ToolRouter
-- Produces final answer + tool results + plan summary
-- Supports resume via `plan_id`
+- Tool canonicalization is centralized:
+  - `core/tools/tool_canonicalization.py`
 
-### Response Shape (minimum keys)
-- `ok` (bool)
-- `session_id` (string)
-- `final` (string)
-- `tool_results` (list)
-- `plan` (object|null)
-- `error` (string|null)
-- `details` (object|null)
-- `checkpoint` (object|null)
+### LLM Health
+- MasterAgent exposes:
+  - `health_llm() -> (ok: bool, details: dict)`
+- Used by Gateway `/health/llm`
+- `details` includes the actual checked URL and status info.
 
-### Timing Telemetry
-`handle_chat` returns `timing_ms` with deterministic stage names:
-- `total`
-- `memory_add`
-- `context_build`
-- `llm_plan`
-- `planner_tools`
-- `llm_final`
+### Checkpointing / Resume
+- Plan checkpoints stored at: `.runtime/plans/<plan_id>.json` (atomic write)
+- `/chat` accepts optional `plan_id` to resume deterministically.
 
-Also returned:
-- `tool_calls_count` (int)
-- `tool_batches` (int)
+## Gateway Metrics (checkpoint persistence)
+Gateway `/metrics` exports:
+- `plans_saved_total`
+- `last_plan_id`
 
-### Checkpointing
-- MasterAgent writes plan checkpoints through PlanStateStore.
-- `checkpoint` object includes (minimum):
-  - `ok` (bool)
-  - `status` (string: `running`, `done`, `failed`, `failed_normalize`)
-  - `path` (string, absolute)
-  - `bytes` (int)
-  - `plan_id` (string)
-
-### Resume
-- If `plan_id` is provided and exists:
-  - PlanStateStore loads `.runtime/plans/<plan_id>.json`
-  - MasterAgent continues execution from that plan state
-- If load fails:
-  - `error = RESUME_FAILED`
-
-## PlanStateStore
-### Location
-- `core/kernel/plan_state_store.py`
-
-### Storage
-- Directory: `.runtime/plans/`
-- File: `<plan_id>.json`
-- Atomic write: `.tmp` + `os.replace`
-
-### Schema (v1)
-Top-level keys:
-- `schema_version`
-- `plan_id`
-- `goal`
-- `created_utc`
-- `updated_utc`
-- `status`
-- `cursors`
-- `tool_results_ref`
-- `plan` (full plan object)
-
-## Planner
-### Location
-- `core/kernel/planner.py`
-
-### Requirements (operational)
-- Supports very large plans (3–10,000+ steps)
-- Batching for tool execution (caller requests tool batches)
-- Plan state must be serializable for resume/checkpoints
-
-### Plan Execution Signals (minimum expectations)
-- Plan normalization is deterministic
-- Steps have a `status` (e.g., `pending`, `done`, `failed`)
-- Planner exposes a “ready batch” concept for tool calls
-
-## ToolRouter
-### Contract
-- All tool execution occurs through ToolRouter
-- Tool calls are canonicalized before execution
-
-### Tool Results
-- Tool results are returned as objects and attached under `tool_results`
-- Tool results may include internal `_step_id` correlation fields
+## Gates (required)
+- Kernel invariants gate: `ops/kernel_gate.py` (imports canonicalization + checks MasterAgent wiring)
+- Full-system gate: `ops/gate.ps1`

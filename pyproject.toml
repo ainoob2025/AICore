@@ -28,3 +28,12 @@ python-dotenv = "^1.0.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+# Aktiviere zusätzlich zu den Standards (E, F) auch Bugbear (B) und Isort (I)
+select = ["E", "F", "B", "I", "UP"]
+ignore = []
+
+[tool.ruff.lint]
+# Erkennt z.B. potenziell gefährliche Default-Argumente
+preview = true 
