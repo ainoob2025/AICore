@@ -1,60 +1,117 @@
+"""Enterprise-grade ToolRouter for AI Core.
+Deterministic results, strict validation, robust error handling.
 """
-ToolRouter – zentrale Steuerung aller Tools
-"""
+
+from __future__ import annotations
+
+import logging
+from typing import TypedDict, List, Dict, Any
 
 from .browser.browser_tools import BrowserTools
 from .file.file_tools import FileTools
 from .terminal.terminal_tools import TerminalTools
+from .audio.audio_tools import AudioTools
+from .video.video_tools import VideoTools
+from .echo_tool import EchoTool
+
+
+class ToolCall(TypedDict):
+    name: str
+    method: str
+    args: Dict[str, Any]
+
+
+class ToolResult(TypedDict):
+    ok: bool
+    name: str
+    method: str
+    result: Dict[str, Any] | None
+    error: str | None
+    details: Dict[str, Any] | None
+
+
+ERROR_INVALID_TOOL_CALL = "INVALID_TOOL_CALL"
+ERROR_UNKNOWN_TOOL = "UNKNOWN_TOOL"
+ERROR_TOOL_EXCEPTION = "TOOL_EXCEPTION"
 
 
 class ToolRouter:
-    """
-    Registriert alle verfügbaren Tools und führt sie aus.
-    Wird vom MasterAgent genutzt.
-    """
-
-    def __init__(self):
-        # Direkte Registrierung – kein externes Registry mehr nötig
-        self.tools = {
+    def __init__(self) -> None:
+        self._log = logging.getLogger(__name__)
+        self._tools: Dict[str, Any] = {
             "browser": BrowserTools(),
             "file": FileTools(),
             "terminal": TerminalTools(),
+            "audio": AudioTools(),
+            "video": VideoTools(),
+            "echo": EchoTool(),
         }
 
-    def execute(self, tools_list):
-        """
-        Führt eine Liste von Tool-Aufrufen aus.
-        Wird vom MasterAgent übergeben.
-        """
-        if not tools_list:
-            return []
+    def available_tools(self) -> List[str]:
+        return sorted(self._tools.keys())
 
-        results = []
+    def execute(self, tool_calls: List[Dict[str, Any]]) -> List[ToolResult]:
+        results: List[ToolResult] = []
 
-        for tool in tools_list:
-            name = tool.get("name")
-            method_name = tool.get("method", "run")  # Standard-Methode
-            args = tool.get("args", {})
+        for call in tool_calls:
+            name = call.get("name")
+            method = call.get("method")
+            args = call.get("args")
 
-            tool_instance = self.tools.get(name)
-
-            if not tool_instance:
-                results.append(f"Tool '{name}' nicht gefunden")
+            if not isinstance(name, str) or not name or not isinstance(method, str) or not method or not isinstance(args, dict):
+                results.append({
+                    "ok": False,
+                    "name": str(name),
+                    "method": str(method),
+                    "result": None,
+                    "error": ERROR_INVALID_TOOL_CALL,
+                    "details": {"call": call},
+                })
                 continue
 
-            method = getattr(tool_instance, method_name, None)
-            if not method:
-                results.append(f"Methode '{method_name}' nicht in {name} gefunden")
+            tool = self._tools.get(name)
+            if tool is None:
+                results.append({
+                    "ok": False,
+                    "name": name,
+                    "method": method,
+                    "result": None,
+                    "error": ERROR_UNKNOWN_TOOL,
+                    "details": {"available": self.available_tools()},
+                })
                 continue
+
+            self._log.info("Tool call start", extra={"tool": name, "method": method, "args_keys": list(args.keys())})
 
             try:
-                result = method(**args)
-                results.append(result)
-            except Exception as e:
-                results.append(f"Fehler bei {name}.{method_name}: {str(e)}")
+                result = tool.run(method, args)
+                results.append({
+                    "ok": True,
+                    "name": name,
+                    "method": method,
+                    "result": result,
+                    "error": None,
+                    "details": None,
+                })
+                self._log.info("Tool call end", extra={"tool": name, "method": method})
+            except Exception as exc:
+                self._log.exception("Tool exception", extra={"tool": name, "method": method})
+                results.append({
+                    "ok": False,
+                    "name": name,
+                    "method": method,
+                    "result": None,
+                    "error": ERROR_TOOL_EXCEPTION,
+                    "details": {
+                        "type": type(exc).__name__,
+                        "message": str(exc),
+                    },
+                })
 
         return results
 
-    def list_available_tools(self):
-        """Gibt Liste aller verfügbaren Tools zurück – für Planner"""
-        return list(self.tools.keys())
+
+if __name__ == "__main__":
+    router = ToolRouter()
+    print(router.available_tools())
+    print(router.execute([{"name": "echo", "method": "echo", "args": {"text": "ping"}}]))

@@ -1,0 +1,6 @@
+{"ts": 1765620825.3551452, "role": "user", "message": "u1"}
+{"ts": 1765620825.3551452, "role": "assistant", "message": "a1"}
+{"ts": 1765622386.5990129, "role": "user", "message": "Say hi."}
+{"ts": 1765622392.7603333, "role": "assistant", "message": "Hello!", "meta": {"status": "ok"}}
+{"ts": 1765622399.0748284, "role": "user", "message": "Return STRICT JSON with tool_calls=[] and final=hi."}
+{"ts": 1765622401.5538194, "role": "assistant", "message": "hi", "meta": {"status": "ok"}}

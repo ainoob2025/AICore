@@ -1,44 +1,26 @@
-"""
-Echo tool for simple message output and debugging.
+"""Echo tool (enterprise-grade test utility)."""
 
-Provides a basic functionality to return the input message unchanged.
-"""
+from __future__ import annotations
+
+from typing import Any, Dict
+
 
 class EchoTool:
-    """
-    Simple tool that returns the input message unchanged.
-    
-    Attributes:
-        - name: 'echo'
-        - description: 'Returns input message as is for debugging and testing purposes'
-    """
-    def __init__(self):
-        self.name = 'echo'
-        self.description = 'Returns input message as is for debugging and testing purposes'
+    """Deterministic echo tool for smoke tests and integration checks."""
 
-    def execute(self, message: str) -> dict:
-        """
-        Execute the echo operation.
-        
-        Args:
-            message: The message to echo
-        
-        Returns:
-            Dictionary with status and echoed message
-        """
-        return {
-            'status': 'success',
-            'message': f'Echoed message: {message}',
-            'original_message': message,
-            'timestamp': self._get_timestamp()
-        }
+    def run(self, method: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(method, str) or not method:
+            return {"ok": False, "error": "INVALID_METHOD", "details": {"method": method}}
+        if not isinstance(args, dict):
+            return {"ok": False, "error": "INVALID_ARGS", "details": {"type": type(args).__name__}}
 
-    def _get_timestamp(self) -> str:
-        """
-        Generate a formatted timestamp.
-        
-        Returns:
-            Formatted timestamp string
-        """
-        from datetime import datetime
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if method == "echo":
+            text = args.get("text", "")
+            if not isinstance(text, (str, int, float, bool)):
+                return {"ok": False, "error": "INVALID_TEXT", "details": {"type": type(text).__name__}}
+            return {"ok": True, "text": str(text)}
+
+        if method == "ping":
+            return {"ok": True, "pong": True}
+
+        return {"ok": False, "error": "UNKNOWN_METHOD", "details": {"method": method}}

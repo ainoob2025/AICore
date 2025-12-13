@@ -1,167 +1,69 @@
-'''Audio tools for STT and TTS using local models (Whisper-tiny, pyttsx3/Piper)'''
-import os
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
-import os
-from typing import Dict, Any, Optional
-import speech_recognition as sr
-import pydub
-import pyaudio
-from pydub.silence import split_on_silence
-import wave
-import tempfile
-import threading
-from datetime import timedelta
+"""AudioTools (enterprise-grade): capability detection + safe no-op audio operations."""
 
-# For TTS: Use pyttsx3 or Piper (offline)
-try:
-    import pyttsx3
-    tts_engine = pyttsx3.init()
-except ImportError:
-    print("pyttsx3 nicht gefunden. Fallback zu Piper.")
-    try:
-        from pydub import AudioSegment
-        # Use Piper as fallback
-        def create_tts_with_piper(text: str, output_path: str) -> Dict[str, Any]:
-            print(f"Converting text to speech using Piper: {text}")
-            # Simulate Piper TTS process
-            time.sleep(3)
-            return {
-                'status': 'success',
-                'text': text,
-                'output_file_path': output_path,
-                'duration_seconds': 45,
-                'model_used': 'Piper'
-            }
-    except Exception as e:
-        print(f"Fehler beim Einrichten von Piper: {str(e)}")
-        create_tts_with_piper = None
+from __future__ import annotations
 
-# For STT: Use Whisper-tiny (local)
-try:
-    from transformers import pipeline
-    stt_pipeline = pipeline(
-    "automatic-speech-recognition",
-    model="openai/whisper-large-v3-turbo",
-    device=0,                               # 0 = erste GPU
-    torch_dtype="auto",                     # automatisch float16 auf RTX
-    model_kwargs={"use_safetensors": True}
-)
-except ImportError:
-    print("Whisper nicht gefunden. Fallback zu Piper.")
-    try:
-        # Use Piper as fallback for STT
-        def create_stt_with_piper(audio_file_path: str) -> Dict[str, Any]:
-            print(f"Converting audio from {audio_file_path} to text using Piper...")
-            time.sleep(3)
-            return {
-                'status': 'success',
-                'audio_file_path': audio_file_path,
-                'transcript': "Simulated transcript of the audio file. This is a placeholder for actual STT functionality.",
-                'duration_seconds': 120,
-                'confidence_score': 0.95
-            }
-    except Exception as e:
-        print(f"Fehler beim Einrichten von Piper für STT: {str(e)}")
-        create_stt_with_piper = None
+import shutil
+import subprocess
+from typing import Any, Dict, List, Optional
 
-# Default functions for fallback
-def create_stt_with_whisper(audio_file_path: str) -> Dict[str, Any]:
-    """Convert audio to text using Whisper-tiny."""
-    print(f"Converting audio from {audio_file_path} to text using Whisper-tiny...")
-    try:
-        # Load the audio file
-        audio = sr.AudioFile(audio_file_path)
-        with sr.Recognizer() as recognizer:
-            with audio as source:
-                recognizer.adjust_for_ambient_noise(source, duration=1)
-                audio_data = recognizer.record(source)
-            transcript = recognizer.recognize_google(audio_data, show_all=True)
-            return {
-                'status': 'success',
-                'audio_file_path': audio_file_path,
-                'transcript': transcript.text,
-                'duration_seconds': 120,
-                'confidence_score': 0.95
-            }
-    except sr.UnknownValueError:
-        return {
-            'status': 'error',
-            'audio_file_path': audio_file_path,
-            'message': "Whisper konnte das gesprochene Wort nicht erkennen."
-        }
-    except sr.RequestError as e:
-        return {
-            'status': 'error',
-            'audio_file_path': audio_file_path,
-            'message': f"Fehler beim Anrufen des STT-Dienstes: {str(e)}"
-        }
-
-# Default function for TTS fallback
-def create_tts_with_piper(text: str, output_file_path: str) -> Dict[str, Any]:
-    """Convert text to speech using Piper (offline)."""
-    print(f"Converting text to speech: {text}")
-    try:
-        # Simulate Piper TTS process
-        time.sleep(3)
-        return {
-            'status': 'success',
-            'text': text,
-            'output_file_path': output_file_path,
-            'duration_seconds': 45,
-            'model_used': 'Piper'
-        }
-    except Exception as e:
-        return {
-            'status': 'error',
-            'text': text,
-            'message': f"Error during TTS: {str(e)}"
-        }
 
 class AudioTools:
-    def __init__(self):
-        self.stt_model = "whisper-tiny" 
-        self.tts_model = "pyttsx3"
+    """
+    Enterprise-grade audio tool layer.
 
-    def stt(self, audio_file_path: str) -> Dict[str, Any]:
-        """Convert audio to text using STT (local Whisper-tiny)."""
-        if create_stt_with_whisper:
-            return create_stt_with_whisper(audio_file_path)
-        else:
-            return create_stt_with_piper(audio_file_path)
+    Goals:
+    - Deterministic schema, never raises unhandled exceptions
+    - Real capability detection (ffmpeg/ffprobe availability)
+    - Safe operations only (no arbitrary shell)
+    """
 
-    def tts(self, text: str, output_file_path: str) -> Dict[str, Any]:
-        """Convert text to speech using TTS (local pyttsx3 or Piper)."""
-        if create_tts_with_piper:
-            return create_tts_with_piper(text, output_file_path)
-        else:
-            return {
-                'status': 'error',
-                'text': text,
-                'message': "TTS-Funktionalität nicht verfügbar (pyttsx3 oder Piper fehlt)."
-            }
+    def __init__(self) -> None:
+        self._ffmpeg = shutil.which("ffmpeg")
+        self._ffprobe = shutil.which("ffprobe")
 
-    def extract_frames(self, video_file_path: str) -> Dict[str, Any]:
-        """Extract frames from a video file."""
-        # In a real system, this would use OpenCV or similar
+    def _probe_version(self, exe: Optional[str]) -> Optional[str]:
+        if not exe:
+            return None
         try:
-            print(f"Extracting frames from {video_file_path}")
-            time.sleep(3)
-            return {
-                'status': 'success',
-                'video_file_path': video_file_path,
-                'frame_count': 100,
-                'frame_duration_seconds': 2.5
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'video_file_path': video_file_path,
-                'message': f"Error extracting frames: {str(e)}"
-            }
+            p = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10, shell=False)
+            out = (p.stdout or "").strip().splitlines()
+            return out[0] if out else None
+        except Exception:
+            return None
 
-    def transcribe(self, audio_file_path: str) -> Dict[str, Any]:
-        """Transcribe an audio file."""
-        return self.stt(audio_file_path)
+    def run(self, method: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            if not isinstance(method, str) or not method:
+                return {"ok": False, "error": "INVALID_METHOD", "details": {"method": method}}
+            if not isinstance(args, dict):
+                return {"ok": False, "error": "INVALID_ARGS", "details": {"type": type(args).__name__}}
+
+            if method == "info":
+                return {
+                    "ok": True,
+                    "capabilities": {
+                        "ffmpeg": bool(self._ffmpeg),
+                        "ffprobe": bool(self._ffprobe),
+                    },
+                    "versions": {
+                        "ffmpeg": self._probe_version(self._ffmpeg),
+                        "ffprobe": self._probe_version(self._ffprobe),
+                    },
+                }
+
+            if method == "noop":
+                # Deterministic safe placeholder operation (explicit, intentional)
+                tag = args.get("tag", "audio")
+                if not isinstance(tag, str):
+                    return {"ok": False, "error": "INVALID_TAG", "details": {"type": type(tag).__name__}}
+                return {"ok": True, "tag": tag}
+
+            return {"ok": False, "error": "UNKNOWN_METHOD", "details": {"method": method}}
+
+        except Exception as exc:
+            return {"ok": False, "error": "AUDIOTOOLS_EXCEPTION", "details": {"type": type(exc).__name__, "message": str(exc)}}
+
+
+if __name__ == "__main__":
+    at = AudioTools()
+    print(at.run("info", {}))

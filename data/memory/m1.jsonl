@@ -1,0 +1,4 @@
+{"ts": 1765623438.8637483, "role": "user", "message": "Say hi."}
+{"ts": 1765623441.3668625, "role": "assistant", "message": "Hi there!", "meta": {"status": "ok"}}
+{"ts": 1765624697.060827, "role": "user", "message": "Say hi."}
+{"ts": 1765624699.5437427, "role": "assistant", "message": "Hi there!", "meta": {"status": "ok"}}

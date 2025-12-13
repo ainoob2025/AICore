@@ -1,52 +1,68 @@
-'''Video tools for frame extraction, transcription and simple analysis'''
+"""VideoTools (enterprise-grade): capability detection + safe no-op video operations."""
 
-import os
-from typing import Dict, Any
+from __future__ import annotations
+
+import shutil
+import subprocess
+from typing import Any, Dict, Optional
+
 
 class VideoTools:
-    def __init__(self):
-        self.frame_extraction_interval = 5.0 
-        self.transcription_model = "piper"
+    """
+    Enterprise-grade video tool layer.
 
-    def extract_frames(self, video_file_path: str) -> Dict[str, Any]:
-        """Extract frames from a video file at specified intervals."""
+    Goals:
+    - Deterministic schema, never raises unhandled exceptions
+    - Real capability detection (ffmpeg/ffprobe availability)
+    - Safe operations only (no arbitrary shell)
+    """
+
+    def __init__(self) -> None:
+        self._ffmpeg = shutil.which("ffmpeg")
+        self._ffprobe = shutil.which("ffprobe")
+
+    def _probe_version(self, exe: Optional[str]) -> Optional[str]:
+        if not exe:
+            return None
         try:
-            print(f"Extracting frames from {video_file_path} every {self.frame_extraction_interval} seconds...")
-            time.sleep(3)
-            return {
-                'status': 'success',
-                'video_file_path': video_file_path,
-                'frame_count': 100,
-                'interval_seconds': self.frame_extraction_interval,
-                'total_duration_seconds': 240
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'video_file_path': video_file_path,
-                'message': f"Error extracting frames: {str(e)}"
-            }
+            p = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10, shell=False)
+            out = (p.stdout or "").strip().splitlines()
+            return out[0] if out else None
+        except Exception:
+            return None
 
-    def transcribe(self, audio_file_path: str) -> Dict[str, Any]:
-        """Transcribe the audio from a video file."""
-        return self.stt(audio_file_path)
-
-    def analyze(self, video_file_path: str) -> Dict[str, Any]:
-        """Perform simple analysis on a video (duration, resolution, scene changes)."""
+    def run(self, method: str, args: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            print(f"Analyzing video {video_file_path}")
-            time.sleep(3)
-            return {
-                'status': 'success',
-                'video_file_path': video_file_path,
-                'duration_seconds': 240,
-                'resolution': "1920x1080",
-                'scene_changes': 5,
-                'analysis_summary': "Video has a clear narrative flow with consistent pacing."
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'video_file_path': video_file_path,
-                'message': f"Error analyzing video: {str(e)}"
-            }
+            if not isinstance(method, str) or not method:
+                return {"ok": False, "error": "INVALID_METHOD", "details": {"method": method}}
+            if not isinstance(args, dict):
+                return {"ok": False, "error": "INVALID_ARGS", "details": {"type": type(args).__name__}}
+
+            if method == "info":
+                return {
+                    "ok": True,
+                    "capabilities": {
+                        "ffmpeg": bool(self._ffmpeg),
+                        "ffprobe": bool(self._ffprobe),
+                    },
+                    "versions": {
+                        "ffmpeg": self._probe_version(self._ffmpeg),
+                        "ffprobe": self._probe_version(self._ffprobe),
+                    },
+                }
+
+            if method == "noop":
+                tag = args.get("tag", "video")
+                if not isinstance(tag, str):
+                    return {"ok": False, "error": "INVALID_TAG", "details": {"type": type(tag).__name__}}
+                return {"ok": True, "tag": tag}
+
+            return {"ok": False, "error": "UNKNOWN_METHOD", "details": {"method": method}}
+
+        except Exception as exc:
+            return {"ok": False, "error": "VIDEOTOOLS_EXCEPTION", "details": {"type": type(exc).__name__, "message": str(exc)}}
+
+
+if __name__ == "__main__":
+    vt = VideoTools()
+    print(vt.run("info", {}))
