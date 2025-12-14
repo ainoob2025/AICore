@@ -1,8 +1,6 @@
-from .kernel.master_agent import MasterAgent
-from .planner.planner import Planner
-from .tools.tool_router import ToolRouter
-from .memory.memory_os import MemoryOS
-from .rag.rag_engine import RAGEngine
-from .graph.graph_engine import GraphEngine
+"""AI Core package.
 
-__all__ = ["MasterAgent", "Planner", "ToolRouter", "MemoryOS", "RAGEngine", "GraphEngine"]
+No side-effect imports in package init.
+All wiring is explicit via gateway_init_.py and core/kernel/*.
+"""
+__all__ = []

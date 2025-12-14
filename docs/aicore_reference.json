@@ -2,101 +2,164 @@
   "version": 1,
   "project_root": "C:\\AI\\AICore",
   "execution_state": {
-    "last_completed_step": "PHASE 0 / STEP 0.3",
-    "next_step": "PHASE 1 / STEP 1.1"
+    "last_completed_step": "PHASE 1 / STEP 1.1",
+    "next_step": "PHASE 2 / STEP 2.1",
+    "last_green_gate": {
+      "ops_gate": "GREEN",
+      "kernel_gate": "GREEN",
+      "notes": "Gate stabilized for consumer hardware: /chat ping timeout raised to 120s. Gateway /metrics plans_saved_total + last_plan_id are restart-safe via filesystem scan of .runtime/plans."
+    }
   },
   "phases": {
     "PHASE 0": {
       "steps": {
-        "STEP 0.1": {
-          "status": "completed",
-          "description": "Masterplan documents for user and supervisor"
-        },
-        "STEP 0.2": {
-          "status": "completed",
-          "description": "Supervisor and Worker workflow specifications"
-        },
-        "STEP 0.3": {
-          "status": "completed",
-          "description": "Base configuration files and initial config system"
-        }
+        "STEP 0.1": { "status": "completed", "description": "Masterplan documents for user and supervisor" },
+        "STEP 0.2": { "status": "completed", "description": "Supervisor and Worker workflow specifications" },
+        "STEP 0.3": { "status": "completed", "description": "Base configuration files and initial config system" }
       }
     },
     "PHASE 1": {
       "steps": {
         "STEP 1.1": {
+          "status": "completed",
+          "description": "Kernel + Gateway running on 127.0.0.1:10010 with ops gates and stable contracts (health, health/llm, metrics, chat). Metrics are restart-safe."
+        }
+      }
+    },
+    "PHASE 2": {
+      "steps": {
+        "STEP 2.1": {
           "status": "pending",
-          "description": "Kernel and gateway base types and HTTP API schemas"
+          "description": "Agent system becomes REAL: AgentFactory/Runtime/Comm integrated and used by MasterAgent via plan step types"
+        }
+      }
+    },
+    "PHASE 3": {
+      "steps": {
+        "STEP 3.1": {
+          "status": "in_progress",
+          "description": "ToolRouter + canonicalization + baseline tools REAL; hooks/statistics expansion pending"
+        }
+      }
+    },
+    "PHASE 4": {
+      "steps": {
+        "STEP 4.1": {
+          "status": "in_progress",
+          "description": "RAGEngine wired; full ingest/query tool suite + benchmarks pending"
+        }
+      }
+    },
+    "PHASE 5": {
+      "steps": {
+        "STEP 5.1": {
+          "status": "pending",
+          "description": "Graph + Cross-Memory Search REAL and used in planner decisions"
+        }
+      }
+    },
+    "PHASE 6": {
+      "steps": {
+        "STEP 6.1": {
+          "status": "pending",
+          "description": "Self-improvement feedback logging REAL + self-improve agent + strategy application"
+        }
+      }
+    },
+    "PHASE 7": {
+      "steps": {
+        "STEP 7.1": {
+          "status": "in_progress",
+          "description": "Ecosystem tools exist; completeness + safety hardening pending"
+        }
+      }
+    },
+    "PHASE 8": {
+      "steps": {
+        "STEP 8.1": {
+          "status": "pending",
+          "description": "Evaluation/benchmarks + stabilization beyond current ops gates"
+        }
+      }
+    },
+    "PHASE 9": {
+      "steps": {
+        "STEP 9.1": {
+          "status": "pending",
+          "description": "Policy optimization (RL-light): reward schema + policy layer influencing planner/tools"
         }
       }
     }
   },
-  "config": {
-    "settings": {
-      "path": "config/settings.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+  "ops_contracts": {
+    "gateway": "docs/OPS_GATEWAY.md",
+    "kernel": "docs/OPS_KERNEL.md",
+    "gate_script": "ops/gate.ps1",
+    "kernel_gate": "ops/kernel_gate.py",
+    "notes": "Gate /chat uses 120s timeout to allow cold-start/JIT model load on consumer hardware."
+  },
+  "modules": {
+    "gateway_entrypoint": {
+      "path": "gateway_init_.py",
+      "status": "REAL",
+      "notes": "Only external entry point; /metrics uses filesystem scan of .runtime/plans for restart-safe plans_saved_total and last_plan_id."
     },
-    "models": {
-      "path": "config/models.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "core_package_init": {
+      "path": "core/__init__.py",
+      "status": "REAL",
+      "notes": "No side-effect imports; wiring is explicit via gateway_init_.py and core/kernel/*."
     },
-    "providers": {
-      "path": "config/providers.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "kernel_master_agent": {
+      "path": "core/kernel/master_agent.py",
+      "status": "REAL",
+      "notes": "Planner-driven orchestration; tool execution exclusively via ToolRouter; checkpoints via PlanStateStore."
     },
-    "tools_config": {
-      "path": "config/tools.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "kernel_planner": {
+      "path": "core/kernel/planner.py",
+      "status": "REAL",
+      "notes": "Massive plan engine with batching/resume/checkpoints."
     },
-    "agents_config": {
-      "path": "config/agents.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "plan_state_store": {
+      "path": "core/kernel/plan_state_store.py",
+      "status": "REAL",
+      "notes": "Atomic checkpoint persistence under .runtime/plans/<plan_id>.json"
     },
-    "rag_config": {
-      "path": "config/rag.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "tool_router": {
+      "path": "core/tools/tool_router.py",
+      "status": "REAL",
+      "notes": "All tool execution flows through ToolRouter."
     },
-    "strategies_config": {
-      "path": "config/strategies.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "tool_canonicalization": {
+      "path": "core/tools/tool_canonicalization.py",
+      "status": "REAL",
+      "notes": "Single source of truth for canonicalization."
     },
-    "services_config": {
-      "path": "config/services.yaml",
-      "phase_created": "PHASE 0 / STEP 0.3",
-      "phase_updated": "PHASE 0 / STEP 0.3"
+    "memory_os": {
+      "path": "core/memory/memory_os.py",
+      "status": "REAL",
+      "notes": "Used by MasterAgent; cross-memory/graph integration pending (Phase 5)."
+    },
+    "rag_engine": {
+      "path": "core/rag/rag_engine.py",
+      "status": "REAL",
+      "notes": "Used by MasterAgent; full RAG suite/benchmarks pending."
     }
   },
-  "modules": {},
-  "tools": {},
+  "tools": {
+    "ping": { "status": "REAL", "notes": "Baseline tool" },
+    "echo": { "status": "REAL", "notes": "Baseline tool" },
+    "browser": { "status": "REAL", "notes": "Routed via ToolRouter" },
+    "file": { "status": "REAL", "notes": "Routed via ToolRouter" },
+    "terminal": { "status": "REAL", "notes": "Routed via ToolRouter" },
+    "audio": { "status": "IN_PROGRESS", "notes": "Exists; completeness/safety hardening pending" },
+    "video": { "status": "IN_PROGRESS", "notes": "Exists; completeness/safety hardening pending" }
+  },
   "agents": {},
   "workflows": {},
   "docs": {
-    "masterplan_user": {
-      "path": "docs/MASTERPLAN_USER.md",
-      "phase_created": "PHASE 0 / STEP 0.1",
-      "phase_updated": "PHASE 0 / STEP 0.1"
-    },
-    "masterplan_supervisor": {
-      "path": "docs/MASTERPLAN_SUPERVISOR.md",
-      "phase_created": "PHASE 0 / STEP 0.1",
-      "phase_updated": "PHASE 0 / STEP 0.1"
-    },
-    "supervisor_workflow": {
-      "path": "docs/SUPERVISOR_WORKFLOW.md",
-      "phase_created": "PHASE 0 / STEP 0.2",
-      "phase_updated": "PHASE 0 / STEP 0.2"
-    },
-    "worker_workflow": {
-      "path": "docs/WORKER_WORKFLOW.md",
-      "phase_created": "PHASE 0 / STEP 0.2",
-      "phase_updated": "PHASE 0 / STEP 0.2"
-    }
+    "masterplan_user": { "path": "docs/MASTERPLAN_USER.md" },
+    "masterplan_supervisor": { "path": "docs/MASTERPLAN_SUPERVISOR.md" },
+    "ops_gateway": { "path": "docs/OPS_GATEWAY.md" },
+    "ops_kernel": { "path": "docs/OPS_KERNEL.md" }
   }
 }

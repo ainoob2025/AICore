@@ -41,6 +41,9 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(ROOT_DIR, "logs")
 REQ_LOG_PATH = os.path.join(LOG_DIR, "gateway_requests.jsonl")
 
+# Plan store (restart-safe metrics source)
+PLANS_DIR = os.path.join(ROOT_DIR, ".runtime", "plans")
+
 AGENT = MasterAgent()
 
 _LOG_LOCK = threading.Lock()
@@ -53,6 +56,9 @@ _RATE_LIMITED_TOTAL = 0
 _BY_PATH = Counter()
 _BY_STATUS = Counter()
 _LAT_MS: Deque[int] = deque(maxlen=5000)
+
+# NOTE: plans_saved_total/last_plan_id MUST be restart-safe.
+# We keep these globals for backward compatibility, but /metrics uses filesystem truth.
 _PLANS_SAVED_TOTAL = 0
 _LAST_PLAN_ID = ""
 
@@ -135,7 +141,37 @@ def _record_chat_latency(ms: int) -> None:
         _CHAT_MS.append(ms)
 
 
+def _plans_metrics_fs() -> Tuple[int, str]:
+    """Restart-safe metrics: count plan files and find most recent plan_id."""
+    try:
+        if not os.path.isdir(PLANS_DIR):
+            return 0, ""
+        latest_mtime = -1.0
+        latest_id = ""
+        count = 0
+        for name in os.listdir(PLANS_DIR):
+            # CASE-INSENSITIVE on Windows (.json vs .JSON)
+            if not str(name).lower().endswith(".json"):
+                continue
+            path = os.path.join(PLANS_DIR, name)
+            try:
+                st = os.stat(path)
+            except Exception:
+                continue
+            count += 1
+            if st.st_mtime > latest_mtime:
+                latest_mtime = st.st_mtime
+                # strip last 5 chars of the original name, preserving original casing
+                latest_id = str(name)[:-5]
+        return count, latest_id
+    except Exception:
+        return 0, ""
+
+
 def _snapshot_metrics() -> Dict[str, Any]:
+    # restart-safe plan metrics from filesystem
+    plans_saved_total_fs, last_plan_id_fs = _plans_metrics_fs()
+
     with _METRICS_LOCK:
         vals = tuple(_LAT_MS)
         chat_vals = tuple(_CHAT_MS)
@@ -144,8 +180,6 @@ def _snapshot_metrics() -> Dict[str, Any]:
         req_total = _REQ_TOTAL
         err_total = _ERR_TOTAL
         rl_total = _RATE_LIMITED_TOTAL
-        plans_saved_total = _PLANS_SAVED_TOTAL
-        last_plan_id = _LAST_PLAN_ID
 
     with _CHAT_INFLIGHT_LOCK:
         inflight = _CHAT_INFLIGHT
@@ -158,8 +192,8 @@ def _snapshot_metrics() -> Dict[str, Any]:
         "ok": True,
         "uptime_s": int(time.time() - _STARTED_AT),
         "requests_total": req_total,
-        "plans_saved_total": plans_saved_total,
-        "last_plan_id": last_plan_id,
+        "plans_saved_total": int(plans_saved_total_fs),
+        "last_plan_id": str(last_plan_id_fs or ""),
         "errors_total": err_total,
         "rate_limited_total": rl_total,
         "by_path": by_path,
@@ -362,22 +396,6 @@ class Handler(BaseHTTPRequestHandler):
             plan_id = pid
 
             res = AGENT.handle_chat(message, session_id=session_id, plan_id=plan_id)
-
-            # Metrics: count successful plan checkpoint saves and track last plan_id
-            try:
-                cp = res.get("checkpoint") if isinstance(res, dict) else None
-                if isinstance(cp, dict) and cp.get("ok") is True:
-                    pid2 = cp.get("plan_id")
-                    if not isinstance(pid2, str) or not pid2:
-                        pl = res.get("plan") if isinstance(res, dict) else None
-                        pid2 = pl.get("plan_id") if isinstance(pl, dict) else None
-                    if isinstance(pid2, str) and pid2:
-                        with _METRICS_LOCK:
-                            global _PLANS_SAVED_TOTAL, _LAST_PLAN_ID
-                            _PLANS_SAVED_TOTAL += 1
-                            _LAST_PLAN_ID = pid2
-            except Exception:
-                pass
 
             try:
                 tm = res.get("timing_ms") if isinstance(res, dict) else None

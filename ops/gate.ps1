@@ -14,7 +14,7 @@ function Get-Json($url) {
 
 function Post-Json($url, $obj) {
   $body = ($obj | ConvertTo-Json -Compress)
-  Invoke-RestMethod -Method Post -Uri $url -ContentType "application/json" -Body $body -TimeoutSec 30
+  Invoke-RestMethod -Method Post -Uri $url -ContentType "application/json" -Body $body -TimeoutSec 120
 }
 
 function Get-HttpJson-Curl($url) {
